@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BarChart3, Bot, CircleDollarSign, Newspaper, Search, Sparkles, TrendingDown, TrendingUp, Trophy, Wallet2 } from 'lucide-react';
+import { ArrowRight, BarChart3, Bot, CircleDollarSign, Newspaper, Search, SlidersHorizontal, Sparkles, TrendingDown, TrendingUp, Trophy, Wallet2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { searchStocks, getStockCompanyInfo, getStockFinancialRatios, getStockQuote } from '@/lib/stockApi';
@@ -121,6 +121,11 @@ export default function DashboardPage() {
                             <Link href="/">Back home</Link>
                         </Button>
                         <Button asChild className="rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">
+                            <Link href="/screener" className="flex items-center gap-2">
+                                <SlidersHorizontal className="h-4 w-4" /> Open screener
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
                             <Link href="/profile">View profile</Link>
                         </Button>
                     </div>

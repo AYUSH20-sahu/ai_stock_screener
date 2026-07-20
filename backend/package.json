@@ -1,6 +1,7 @@
 {
     "name": "@ai-stock-screener/backend",
     "private": true,
+    "main": "dist/index.js",
     "type": "commonjs",
     "scripts": {
         "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",

@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(cuid())
+  clerkId          String           @unique
+  email            String           @unique
+  fullName         String?
+  imageUrl         String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  watchlists       Watchlist[]
+  portfolios       Portfolio[]
+  holdings         Holding[]
+  searchHistories  SearchHistory[]
+  savedAnalyses    SavedAnalysis[]
+}
+
+model Watchlist {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings     Holding[]
+}
+
+model Portfolio {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings     Holding[]
+}
+
+model Holding {
+  id            String     @id @default(cuid())
+  symbol        String
+  exchange      String
+  quantity      Float
+  averagePrice  Float
+  investedAmount Float
+  currentValue  Float?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId   String?
+  portfolio     Portfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
+  watchlistId   String?
+  watchlist     Watchlist? @relation(fields: [watchlistId], references: [id], onDelete: SetNull)
+}
+
+model SearchHistory {
+  id          String   @id @default(cuid())
+  query       String
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SavedAnalysis {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

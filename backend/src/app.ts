@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import healthRoutes from './routes/health.routes';
+import profileRoutes from './routes/profile.routes';
 import { notFoundHandler } from './middlewares/notFound';
 import { errorHandler } from './middlewares/errorHandler';
 import { logger } from './utils/logger';
@@ -18,6 +19,7 @@ export const createApp = () => {
     app.use(express.json());
 
     app.use('/api', healthRoutes);
+    app.use('/api', profileRoutes);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

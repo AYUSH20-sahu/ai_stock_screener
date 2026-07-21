@@ -13,4 +13,15 @@ export const geminiController = {
         const result = await geminiService.getInsight(prompt);
         res.status(200).json(result);
     }),
+
+    createInsight: asyncWrapper(async (req: Request, res: Response, _next: NextFunction) => {
+        const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt : '';
+        if (!prompt.trim()) {
+            res.status(400).json({ success: false, message: 'Prompt is required.' });
+            return;
+        }
+
+        const result = await geminiService.getInsight(prompt);
+        res.status(200).json(result);
+    }),
 };

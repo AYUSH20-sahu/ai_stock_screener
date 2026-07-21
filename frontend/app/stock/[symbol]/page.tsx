@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type CandlestickData, type HistogramData, type IChartApi, type LineData, type Time } from 'lightweight-charts';
-import { ArrowLeft, BarChart3, Building2, CircleDollarSign, Landmark, LineChart, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Building2, CircleDollarSign, Landmark, LineChart, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { createGeminiInsight } from '@/lib/geminiApi';
 import { getStockCompanyInfo, getStockFinancialRatios, getStockFinancialStatements, getStockPriceHistory, getStockQuote } from '@/lib/stockApi';
 
 type DataRecord = Record<string, unknown>;
@@ -48,6 +49,28 @@ type FinancialStatements = {
     earningsQuarterly?: DataRecord[];
     revenueAnnual?: DataRecord[];
 };
+
+type GeminiAnalysis = {
+    businessSummary: string;
+    swot: string;
+    strengths: string[];
+    weaknesses: string[];
+    growth: string[];
+    risks: string[];
+    valuation: string[];
+};
+
+const emptyGeminiAnalysis: GeminiAnalysis = {
+    businessSummary: '',
+    swot: '',
+    strengths: [],
+    weaknesses: [],
+    growth: [],
+    risks: [],
+    valuation: [],
+};
+
+const recommendationPattern = /\b(buy|sell|hold|accumulate|reduce|target price|rating|recommendation)\b/i;
 
 function asNumber(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -122,6 +145,77 @@ function StatementRow({ label, value }: { label: string; value: string }) {
         <div className="flex min-h-12 items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
             <span className="text-sm text-slate-400">{label}</span>
             <span className="text-right font-medium text-white">{value}</span>
+        </div>
+    );
+}
+
+function parseGeminiAnalysis(text: string): GeminiAnalysis {
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    if (recommendationPattern.test(cleaned)) {
+        return {
+            ...emptyGeminiAnalysis,
+            businessSummary: 'Gemini returned content that was filtered because it included investment action language.',
+        };
+    }
+    try {
+        const parsed = JSON.parse(cleaned) as Partial<GeminiAnalysis>;
+        return {
+            businessSummary: typeof parsed.businessSummary === 'string' ? parsed.businessSummary : '',
+            swot: typeof parsed.swot === 'string' ? parsed.swot : '',
+            strengths: Array.isArray(parsed.strengths) ? parsed.strengths.filter((item): item is string => typeof item === 'string') : [],
+            weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses.filter((item): item is string => typeof item === 'string') : [],
+            growth: Array.isArray(parsed.growth) ? parsed.growth.filter((item): item is string => typeof item === 'string') : [],
+            risks: Array.isArray(parsed.risks) ? parsed.risks.filter((item): item is string => typeof item === 'string') : [],
+            valuation: Array.isArray(parsed.valuation) ? parsed.valuation.filter((item): item is string => typeof item === 'string') : [],
+        };
+    } catch {
+        return {
+            ...emptyGeminiAnalysis,
+            businessSummary: cleaned || 'Gemini returned an analysis, but it could not be parsed into sections.',
+        };
+    }
+}
+
+function buildGeminiPrompt(payload: {
+    symbol: string;
+    quote: QuoteState | null;
+    companyInfo: DataRecord | null;
+    incomeRows: Array<{ label: string; value: string }>;
+    balanceRows: Array<{ label: string; value: string }>;
+    cashFlowRows: Array<{ label: string; value: string }>;
+    quarterlyRows: Array<{ quarter: string; revenue: string; netIncome: string }>;
+}) {
+    return [
+        'You are a financial research assistant generating neutral company analysis for an educational stock screener.',
+        'Never generate investment advice. Do not use buy, sell, hold, accumulate, reduce, target price, rating, or recommendation language.',
+        'Keep valuation qualitative and contextual. Discuss metrics and caveats only.',
+        'Return only valid JSON with this exact shape:',
+        '{"businessSummary":"string","swot":"string","strengths":["string"],"weaknesses":["string"],"growth":["string"],"risks":["string"],"valuation":["string"]}',
+        'Use concise bullets. Do not include markdown.',
+        `Symbol: ${payload.symbol}`,
+        `Company: ${payload.quote?.shortName || payload.symbol}`,
+        `Sector: ${asText(payload.companyInfo?.sector) || 'N/A'}`,
+        `Industry: ${asText(payload.companyInfo?.industry) || 'N/A'}`,
+        `Business profile: ${asText(payload.companyInfo?.longBusinessSummary) || 'N/A'}`,
+        `Price: ${payload.quote?.regularMarketPrice ?? 'N/A'} ${payload.quote?.currency || ''}`,
+        `Market cap: ${payload.quote?.marketCap ?? 'N/A'}`,
+        `P/E: ${payload.quote?.trailingPE ?? 'N/A'}`,
+        `P/B: ${payload.quote?.priceToBook ?? 'N/A'}`,
+        `Income statement: ${JSON.stringify(payload.incomeRows)}`,
+        `Balance sheet: ${JSON.stringify(payload.balanceRows)}`,
+        `Cash flow: ${JSON.stringify(payload.cashFlowRows)}`,
+        `Quarterly results: ${JSON.stringify(payload.quarterlyRows)}`,
+    ].join('\n');
+}
+
+function AnalysisList({ items }: { items: string[] }) {
+    return (
+        <div className="space-y-2">
+            {(items.length ? items : ['No generated detail available.']).map((item) => (
+                <p key={item} className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm leading-6 text-slate-300">
+                    {item}
+                </p>
+            ))}
         </div>
     );
 }
@@ -273,6 +367,9 @@ export default function StockDetailPage() {
     const [financialRatios, setFinancialRatios] = useState<DataRecord | null>(null);
     const [statements, setStatements] = useState<FinancialStatements | null>(null);
     const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+    const [geminiAnalysis, setGeminiAnalysis] = useState<GeminiAnalysis>(emptyGeminiAnalysis);
+    const [geminiLoading, setGeminiLoading] = useState(false);
+    const [geminiError, setGeminiError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -331,32 +428,80 @@ export default function StockDetailPage() {
     const previousClose = chartValues[chartValues.length - 2] ?? null;
     const trendChange = latestClose != null && previousClose ? ((latestClose - previousClose) / previousClose) * 100 : quote?.regularMarketChangePercent;
 
-    const incomeRows = [
+    const incomeRows = useMemo(() => [
         { label: 'Revenue', value: formatCurrency(field(latestIncome, ['totalRevenue']), currency, 0) },
         { label: 'Gross Profit', value: formatCurrency(field(latestIncome, ['grossProfit']), currency, 0) },
         { label: 'Operating Income', value: formatCurrency(field(latestIncome, ['operatingIncome']), currency, 0) },
         { label: 'Net Income', value: formatCurrency(field(latestIncome, ['netIncome']), currency, 0) },
-    ];
+    ], [latestIncome, currency]);
 
-    const balanceRows = [
+    const balanceRows = useMemo(() => [
         { label: 'Total Assets', value: formatCurrency(field(latestBalance, ['totalAssets']), currency, 0) },
         { label: 'Total Liabilities', value: formatCurrency(field(latestBalance, ['totalLiab', 'totalLiabilitiesNetMinorityInterest']), currency, 0) },
         { label: 'Total Cash', value: formatCurrency(field(latestBalance, ['cash', 'cashAndCashEquivalents', 'cashCashEquivalentsAndShortTermInvestments']) ?? asNumber(financialData.ratiosData.totalCash), currency, 0) },
         { label: 'Total Debt', value: formatCurrency(field(latestBalance, ['shortLongTermDebtTotal', 'totalDebt']) ?? asNumber(financialData.ratiosData.totalDebt), currency, 0) },
-    ];
+    ], [latestBalance, financialData.ratiosData, currency]);
 
-    const cashFlowRows = [
+    const cashFlowRows = useMemo(() => [
         { label: 'Operating Cash Flow', value: formatCurrency(field(latestCashflow, ['totalCashFromOperatingActivities', 'operatingCashFlow']) ?? asNumber(financialData.ratiosData.operatingCashflow), currency, 0) },
         { label: 'Capital Expenditure', value: formatCurrency(field(latestCashflow, ['capitalExpenditures', 'capitalExpenditure']), currency, 0) },
         { label: 'Free Cash Flow', value: formatCurrency(asNumber(financialData.ratiosData.freeCashflow), currency, 0) },
         { label: 'Dividends Paid', value: formatCurrency(field(latestCashflow, ['dividendsPaid', 'cashDividendsPaid']), currency, 0) },
-    ];
+    ], [latestCashflow, financialData.ratiosData, currency]);
 
-    const quarterlyRows = (statements?.incomeQuarterly || []).slice(0, 4).map((row, index) => ({
+    const quarterlyRows = useMemo(() => (statements?.incomeQuarterly || []).slice(0, 4).map((row, index) => ({
         quarter: formatDate(row.endDate) === '-' ? `Q${index + 1}` : formatDate(row.endDate),
         revenue: formatCurrency(field(row, ['totalRevenue']), currency, 0),
         netIncome: formatCurrency(field(row, ['netIncome']), currency, 0),
-    }));
+    })), [statements?.incomeQuarterly, currency]);
+
+    useEffect(() => {
+        if (loading || error) {
+            return;
+        }
+
+        let isMounted = true;
+        const loadGeminiAnalysis = async () => {
+            setGeminiLoading(true);
+            setGeminiError(null);
+            try {
+                const response = await createGeminiInsight(buildGeminiPrompt({
+                    symbol,
+                    quote,
+                    companyInfo,
+                    incomeRows,
+                    balanceRows,
+                    cashFlowRows,
+                    quarterlyRows,
+                }));
+                if (!isMounted) {
+                    return;
+                }
+                if (response?.success === false) {
+                    setGeminiError(response?.message || 'Gemini analysis is unavailable.');
+                    setGeminiAnalysis(emptyGeminiAnalysis);
+                    return;
+                }
+                const text = typeof response?.insight === 'string' ? response.insight : '';
+                setGeminiAnalysis(parseGeminiAnalysis(text));
+            } catch (err) {
+                if (!isMounted) {
+                    return;
+                }
+                setGeminiError(err instanceof Error ? err.message : 'Unable to generate Gemini analysis.');
+                setGeminiAnalysis(emptyGeminiAnalysis);
+            } finally {
+                if (isMounted) {
+                    setGeminiLoading(false);
+                }
+            }
+        };
+
+        loadGeminiAnalysis();
+        return () => {
+            isMounted = false;
+        };
+    }, [loading, error, symbol, quote, companyInfo, incomeRows, balanceRows, cashFlowRows, quarterlyRows]);
 
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.10),_transparent_30%),linear-gradient(135deg,_#020617_0%,_#050816_55%,_#071014_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
@@ -523,6 +668,60 @@ export default function StockDetailPage() {
                             <MetricTile label="Profit Margin" value={formatPercent(asNumber(financialData.ratiosData.profitMargins) != null ? Number(financialData.ratiosData.profitMargins) * 100 : null)} />
                             <MetricTile label="Current Ratio" value={formatMetric(asNumber(financialData.ratiosData.currentRatio))} />
                             <MetricTile label="Dividend Yield" value={formatPercent(typeof quote?.dividendYield === 'number' ? quote.dividendYield * 100 : null)} />
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section className="mt-6">
+                    <Card className="border-slate-800/80 bg-slate-900/70">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-teal-300" />
+                                <CardTitle>Google Gemini Analysis</CardTitle>
+                            </div>
+                            <CardDescription className="text-slate-400">Business summary, SWOT, growth, risks, and valuation context only</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {geminiLoading ? (
+                                <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">Generating Gemini analysis...</div>
+                            ) : geminiError ? (
+                                <div className="rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">{geminiError}</div>
+                            ) : (
+                                <div className="grid gap-4 xl:grid-cols-2">
+                                    <div className="space-y-4">
+                                        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+                                            <p className="text-sm font-medium text-white">Business Summary</p>
+                                            <p className="mt-2 text-sm leading-6 text-slate-300">{geminiAnalysis.businessSummary || 'No generated summary available.'}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+                                            <p className="text-sm font-medium text-white">SWOT</p>
+                                            <p className="mt-2 text-sm leading-6 text-slate-300">{geminiAnalysis.swot || 'No generated SWOT available.'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="mb-2 text-sm font-medium text-white">Strengths</p>
+                                            <AnalysisList items={geminiAnalysis.strengths} />
+                                        </div>
+                                        <div>
+                                            <p className="mb-2 text-sm font-medium text-white">Weaknesses</p>
+                                            <AnalysisList items={geminiAnalysis.weaknesses} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="mb-2 text-sm font-medium text-white">Growth</p>
+                                            <AnalysisList items={geminiAnalysis.growth} />
+                                        </div>
+                                        <div>
+                                            <p className="mb-2 text-sm font-medium text-white">Risks</p>
+                                            <AnalysisList items={geminiAnalysis.risks} />
+                                        </div>
+                                        <div>
+                                            <p className="mb-2 text-sm font-medium text-white">Valuation</p>
+                                            <AnalysisList items={geminiAnalysis.valuation} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </section>

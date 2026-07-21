@@ -116,6 +116,28 @@ export default function ScreenerPage() {
     const startIndex = filteredStocks.length === 0 ? 0 : (page - 1) * pageSize + 1;
     const endIndex = Math.min(page * pageSize, filteredStocks.length);
 
+    const resetFilters = () => {
+        setQuery('');
+        setSector('All');
+        setMarketCapMin('');
+        setMarketCapMax('');
+        setPeMin('');
+        setPeMax('');
+        setPbMin('');
+        setPbMax('');
+        setRoeMin('');
+        setRoeMax('');
+        setRoceMin('');
+        setRoceMax('');
+        setRevenueMin('');
+        setRevenueMax('');
+        setDividendMin('');
+        setDividendMax('');
+        setSortKey('marketCap');
+        setSortDirection('desc');
+        setPage(1);
+    };
+
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_30%),linear-gradient(135deg,_#020617_0%,_#030712_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-7xl">
@@ -144,6 +166,9 @@ export default function ScreenerPage() {
                                 <div className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
                                     {filteredStocks.length} matches
                                 </div>
+                                <Button variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800" onClick={resetFilters}>
+                                    Reset filters
+                                </Button>
                             </div>
                         </div>
                     </CardHeader>

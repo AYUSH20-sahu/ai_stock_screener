@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type CandlestickData, type HistogramData, type IChartApi, type LineData, type Time } from 'lightweight-charts';
-import { ArrowLeft, BarChart3, Building2, CircleDollarSign, Landmark, LineChart, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Landmark, LineChart, Send, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createGeminiInsight } from '@/lib/geminiApi';
@@ -58,6 +58,12 @@ type GeminiAnalysis = {
     growth: string[];
     risks: string[];
     valuation: string[];
+};
+
+type ChatMessage = {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
 };
 
 const emptyGeminiAnalysis: GeminiAnalysis = {
@@ -206,6 +212,48 @@ function buildGeminiPrompt(payload: {
         `Cash flow: ${JSON.stringify(payload.cashFlowRows)}`,
         `Quarterly results: ${JSON.stringify(payload.quarterlyRows)}`,
     ].join('\n');
+}
+
+function buildChatPrompt(payload: {
+    symbol: string;
+    question: string;
+    quote: QuoteState | null;
+    companyInfo: DataRecord | null;
+    ratiosData: DataRecord;
+    incomeRows: Array<{ label: string; value: string }>;
+    balanceRows: Array<{ label: string; value: string }>;
+    cashFlowRows: Array<{ label: string; value: string }>;
+    quarterlyRows: Array<{ quarter: string; revenue: string; netIncome: string }>;
+}) {
+    return [
+        'You are an AI explainer inside a stock research page.',
+        'Answer the user using only educational, context-aware explanation.',
+        'Never generate investment advice. Do not use buy, sell, hold, accumulate, reduce, target price, rating, or recommendation language.',
+        'Explain financial terms clearly and tie the explanation to the company data when available.',
+        'Keep the answer concise: 2-5 short paragraphs or bullets. Do not include markdown tables.',
+        `User question: ${payload.question}`,
+        `Symbol: ${payload.symbol}`,
+        `Company: ${payload.quote?.shortName || payload.symbol}`,
+        `Sector: ${asText(payload.companyInfo?.sector) || 'N/A'}`,
+        `Industry: ${asText(payload.companyInfo?.industry) || 'N/A'}`,
+        `Business profile: ${asText(payload.companyInfo?.longBusinessSummary) || 'N/A'}`,
+        `Price: ${payload.quote?.regularMarketPrice ?? 'N/A'} ${payload.quote?.currency || ''}`,
+        `Market cap: ${payload.quote?.marketCap ?? 'N/A'}`,
+        `PE: ${payload.quote?.trailingPE ?? 'N/A'}`,
+        `PB: ${payload.quote?.priceToBook ?? 'N/A'}`,
+        `ROE: ${asNumber(payload.ratiosData.returnOnEquity) != null ? `${Number(payload.ratiosData.returnOnEquity) * 100}%` : 'N/A'}`,
+        `Income statement rows: ${JSON.stringify(payload.incomeRows)}`,
+        `Balance sheet rows: ${JSON.stringify(payload.balanceRows)}`,
+        `Cash flow rows: ${JSON.stringify(payload.cashFlowRows)}`,
+        `Quarterly rows: ${JSON.stringify(payload.quarterlyRows)}`,
+    ].join('\n');
+}
+
+function filterAdvisoryLanguage(text: string) {
+    if (recommendationPattern.test(text)) {
+        return 'The AI response was filtered because it included investment action language. Try asking for an explanation of a metric, statement line item, or business driver.';
+    }
+    return text.trim();
 }
 
 function AnalysisList({ items }: { items: string[] }) {
@@ -370,6 +418,16 @@ export default function StockDetailPage() {
     const [geminiAnalysis, setGeminiAnalysis] = useState<GeminiAnalysis>(emptyGeminiAnalysis);
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [geminiError, setGeminiError] = useState<string | null>(null);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+        {
+            id: 'welcome',
+            role: 'assistant',
+            content: 'Ask me to explain PE, ROE, cash flow, the company, or the financial statements using the data on this page.',
+        },
+    ]);
+    const [chatInput, setChatInput] = useState('');
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatError, setChatError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -502,6 +560,54 @@ export default function StockDetailPage() {
             isMounted = false;
         };
     }, [loading, error, symbol, quote, companyInfo, incomeRows, balanceRows, cashFlowRows, quarterlyRows]);
+
+    const sendChatMessage = async (question: string) => {
+        const trimmed = question.trim();
+        if (!trimmed || chatLoading) {
+            return;
+        }
+
+        const userMessage: ChatMessage = {
+            id: `${Date.now()}-user`,
+            role: 'user',
+            content: trimmed,
+        };
+        setChatMessages((messages) => [...messages, userMessage]);
+        setChatInput('');
+        setChatLoading(true);
+        setChatError(null);
+
+        try {
+            const response = await createGeminiInsight(buildChatPrompt({
+                symbol,
+                question: trimmed,
+                quote,
+                companyInfo,
+                ratiosData: financialData.ratiosData,
+                incomeRows,
+                balanceRows,
+                cashFlowRows,
+                quarterlyRows,
+            }));
+            if (response?.success === false) {
+                setChatError(response?.message || 'AI chat is unavailable.');
+                return;
+            }
+            const answer = typeof response?.insight === 'string' ? filterAdvisoryLanguage(response.insight) : 'No explanation returned.';
+            setChatMessages((messages) => [
+                ...messages,
+                {
+                    id: `${Date.now()}-assistant`,
+                    role: 'assistant',
+                    content: answer,
+                },
+            ]);
+        } catch (err) {
+            setChatError(err instanceof Error ? err.message : 'Unable to generate an explanation.');
+        } finally {
+            setChatLoading(false);
+        }
+    };
 
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(20,184,166,0.10),_transparent_30%),linear-gradient(135deg,_#020617_0%,_#050816_55%,_#071014_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">

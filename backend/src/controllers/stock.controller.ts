@@ -46,4 +46,26 @@ export const stockController = {
         const payload = await stockService.getFinancialRatios(symbol);
         res.status(200).json({ success: true, data: payload });
     }),
+
+    getFinancialStatements: asyncWrapper(async (req: Request, res: Response, _next: NextFunction) => {
+        const symbol = typeof req.params.symbol === 'string' ? req.params.symbol : '';
+        if (!symbol.trim()) {
+            res.status(400).json({ success: false, message: 'Symbol is required.' });
+            return;
+        }
+
+        const payload = await stockService.getFinancialStatements(symbol);
+        res.status(200).json({ success: true, data: payload });
+    }),
+
+    getPriceHistory: asyncWrapper(async (req: Request, res: Response, _next: NextFunction) => {
+        const symbol = typeof req.params.symbol === 'string' ? req.params.symbol : '';
+        if (!symbol.trim()) {
+            res.status(400).json({ success: false, message: 'Symbol is required.' });
+            return;
+        }
+
+        const payload = await stockService.getPriceHistory(symbol);
+        res.status(200).json({ success: true, data: payload });
+    }),
 };

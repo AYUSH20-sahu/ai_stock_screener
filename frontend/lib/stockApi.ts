@@ -32,3 +32,11 @@ export async function getStockCompanyInfo(symbol: string) {
 export async function getStockFinancialRatios(symbol: string) {
     return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/ratios`);
 }
+
+export async function getStockFinancialStatements(symbol: string) {
+    return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/statements`);
+}
+
+export async function getStockPriceHistory(symbol: string) {
+    return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/history`);
+}

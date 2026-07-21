@@ -17,6 +17,11 @@ interface CacheEntry<T> {
     expiresAt: number;
 }
 
+function getRecordArray(container: Record<string, unknown> | undefined, key: string) {
+    const value = container?.[key];
+    return Array.isArray(value) ? value : [];
+}
+
 class StockService {
     private cache = new Map<string, CacheEntry<unknown>>();
 
@@ -150,6 +155,81 @@ class StockService {
         };
         this.setCache(cacheKey, ratios);
         return ratios;
+    }
+
+    async getFinancialStatements(symbol: string) {
+        const normalized = symbol.trim().toUpperCase();
+        const cacheKey = this.getCacheKey('statements', normalized);
+        const cached = this.getCached<unknown>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const payload = await yahooFinance.quoteSummary(normalized, {
+            modules: [
+                'incomeStatementHistory',
+                'incomeStatementHistoryQuarterly',
+                'balanceSheetHistory',
+                'balanceSheetHistoryQuarterly',
+                'cashflowStatementHistory',
+                'cashflowStatementHistoryQuarterly',
+                'earnings',
+            ],
+        }) as Record<string, unknown>;
+
+        const incomeAnnual = payload.incomeStatementHistory as Record<string, unknown> | undefined;
+        const incomeQuarterly = payload.incomeStatementHistoryQuarterly as Record<string, unknown> | undefined;
+        const balanceAnnual = payload.balanceSheetHistory as Record<string, unknown> | undefined;
+        const balanceQuarterly = payload.balanceSheetHistoryQuarterly as Record<string, unknown> | undefined;
+        const cashflowAnnual = payload.cashflowStatementHistory as Record<string, unknown> | undefined;
+        const cashflowQuarterly = payload.cashflowStatementHistoryQuarterly as Record<string, unknown> | undefined;
+        const earnings = payload.earnings as Record<string, unknown> | undefined;
+        const earningsChart = earnings?.earningsChart as Record<string, unknown> | undefined;
+        const financialsChart = earnings?.financialsChart as Record<string, unknown> | undefined;
+
+        const statements = {
+            symbol: normalized,
+            incomeAnnual: getRecordArray(incomeAnnual, 'incomeStatementHistory'),
+            incomeQuarterly: getRecordArray(incomeQuarterly, 'incomeStatementHistory'),
+            balanceAnnual: getRecordArray(balanceAnnual, 'balanceSheetStatements'),
+            balanceQuarterly: getRecordArray(balanceQuarterly, 'balanceSheetStatements'),
+            cashflowAnnual: getRecordArray(cashflowAnnual, 'cashflowStatements'),
+            cashflowQuarterly: getRecordArray(cashflowQuarterly, 'cashflowStatements'),
+            earningsQuarterly: getRecordArray(earningsChart, 'quarterly'),
+            revenueAnnual: getRecordArray(financialsChart, 'yearly'),
+        };
+        this.setCache(cacheKey, statements);
+        return statements;
+    }
+
+    async getPriceHistory(symbol: string) {
+        const normalized = symbol.trim().toUpperCase();
+        const cacheKey = this.getCacheKey('history', normalized);
+        const cached = this.getCached<unknown>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const period1 = new Date();
+        period1.setMonth(period1.getMonth() - 6);
+        const history = await yahooFinance.chart(normalized, {
+            period1,
+            interval: '1wk',
+        });
+        const prices = history.quotes
+            .filter((item) => typeof item.close === 'number')
+            .map((item) => ({
+                date: item.date,
+                open: typeof item.open === 'number' ? item.open : item.close,
+                high: typeof item.high === 'number' ? item.high : item.close,
+                low: typeof item.low === 'number' ? item.low : item.close,
+                close: item.close,
+                volume: typeof item.volume === 'number' ? item.volume : null,
+            }));
+
+        const result = { symbol: normalized, prices };
+        this.setCache(cacheKey, result);
+        return result;
     }
 }
 

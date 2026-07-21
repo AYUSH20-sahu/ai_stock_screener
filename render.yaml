@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: ai-stock-screener-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: FRONTEND_URL
+        value: https://ai-stock-screener.vercel.app
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: YAHOO_FINANCE_API_KEY
+        sync: false

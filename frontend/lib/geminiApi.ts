@@ -8,13 +8,14 @@ export async function getGeminiInsight(prompt: string) {
     return response.json();
 }
 
-export async function createGeminiInsight(prompt: string) {
+export async function createGeminiInsight(prompt: string, signal?: AbortSignal) {
     const response = await fetch(`${API_BASE_URL}/api/gemini/insight`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ prompt }),
+        signal,
     });
     if (!response.ok) {
         throw new Error('Unable to load Gemini insight.');

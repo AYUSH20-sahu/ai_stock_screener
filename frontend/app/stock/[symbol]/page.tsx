@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type CandlestickData, type HistogramData, type IChartApi, type LineData, type Time } from 'lightweight-charts';
-import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Landmark, LineChart, Send, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Landmark, LineChart, MessageSquare, Send, Sparkles, Square, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createGeminiInsight } from '@/lib/geminiApi';
@@ -428,6 +428,7 @@ export default function StockDetailPage() {
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
     const [chatError, setChatError] = useState<string | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -561,6 +562,14 @@ export default function StockDetailPage() {
         };
     }, [loading, error, symbol, quote, companyInfo, incomeRows, balanceRows, cashFlowRows, quarterlyRows]);
 
+    const stopChat = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setChatLoading(false);
+        }
+    };
+
     const sendChatMessage = async (question: string) => {
         const trimmed = question.trim();
         if (!trimmed || chatLoading) {
@@ -577,6 +586,8 @@ export default function StockDetailPage() {
         setChatLoading(true);
         setChatError(null);
 
+        abortControllerRef.current = new AbortController();
+
         try {
             const response = await createGeminiInsight(buildChatPrompt({
                 symbol,
@@ -588,7 +599,7 @@ export default function StockDetailPage() {
                 balanceRows,
                 cashFlowRows,
                 quarterlyRows,
-            }));
+            }), abortControllerRef.current.signal);
             if (response?.success === false) {
                 setChatError(response?.message || 'AI chat is unavailable.');
                 return;
@@ -603,8 +614,20 @@ export default function StockDetailPage() {
                 },
             ]);
         } catch (err) {
+            if ((err as Error).name === 'AbortError') {
+                setChatMessages((messages) => [
+                    ...messages,
+                    {
+                        id: `${Date.now()}-assistant`,
+                        role: 'assistant',
+                        content: 'Generation stopped.',
+                    },
+                ]);
+                return;
+            }
             setChatError(err instanceof Error ? err.message : 'Unable to generate an explanation.');
         } finally {
+            abortControllerRef.current = null;
             setChatLoading(false);
         }
     };
@@ -828,6 +851,85 @@ export default function StockDetailPage() {
                                     </div>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section className="mt-6">
+                    <Card className="border-slate-800/80 bg-slate-900/70">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Bot className="h-5 w-5 text-teal-300" />
+                                <CardTitle>AI Chat — Explain</CardTitle>
+                            </div>
+                            <CardDescription className="text-slate-400">Ask about PE, ROE, cash flow, the company, or financial statements</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                <Button variant="outline" size="sm" className="rounded-full border-slate-700 text-xs text-slate-200 hover:bg-slate-800" onClick={() => sendChatMessage('Explain PE (Price to Earnings ratio) for this company using the current data.')}>
+                                    Explain PE
+                                </Button>
+                                <Button variant="outline" size="sm" className="rounded-full border-slate-700 text-xs text-slate-200 hover:bg-slate-800" onClick={() => sendChatMessage('Explain ROE (Return on Equity) for this company using the current data.')}>
+                                    Explain ROE
+                                </Button>
+                                <Button variant="outline" size="sm" className="rounded-full border-slate-700 text-xs text-slate-200 hover:bg-slate-800" onClick={() => sendChatMessage('Explain the cash flow statement for this company using the current data.')}>
+                                    Cash Flow
+                                </Button>
+                                <Button variant="outline" size="sm" className="rounded-full border-slate-700 text-xs text-slate-200 hover:bg-slate-800" onClick={() => sendChatMessage('Tell me about this company, its business, sector, and competitive position.')}>
+                                    Company
+                                </Button>
+                                <Button variant="outline" size="sm" className="rounded-full border-slate-700 text-xs text-slate-200 hover:bg-slate-800" onClick={() => sendChatMessage('Explain the financial statements (income statement, balance sheet, and cash flow) for this company using the current data.')}>
+                                    Financial Statements
+                                </Button>
+                                {chatLoading && (
+                                    <Button variant="outline" size="sm" className="rounded-full border-rose-700 text-xs text-rose-300 hover:bg-rose-950" onClick={stopChat}>
+                                        <Square className="mr-1 h-3 w-3" /> Stop
+                                    </Button>
+                                )}
+                            </div>
+
+                            <div className="mb-3 max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                                {chatMessages.map((message) => (
+                                    <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user'
+                                                ? 'bg-teal-600/20 text-teal-100'
+                                                : 'bg-slate-800/60 text-slate-200'
+                                            }`}>
+                                            {message.content}
+                                        </div>
+                                    </div>
+                                ))}
+                                {chatLoading && (
+                                    <div className="flex justify-start">
+                                        <div className="max-w-[85%] rounded-2xl bg-slate-800/60 px-4 py-3 text-sm italic text-slate-400">
+                                            Thinking...
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {chatError && (
+                                <div className="mb-3 rounded-lg border border-amber-900/60 bg-amber-950/30 px-4 py-2 text-sm text-amber-200">{chatError}</div>
+                            )}
+
+                            <form
+                                onSubmit={(event) => {
+                                    event.preventDefault();
+                                    sendChatMessage(chatInput);
+                                }}
+                                className="flex gap-2"
+                            >
+                                <input
+                                    value={chatInput}
+                                    onChange={(event) => setChatInput(event.target.value)}
+                                    placeholder="Ask about PE, ROE, cash flow, the company..."
+                                    disabled={chatLoading}
+                                    className="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-50"
+                                />
+                                <Button type="submit" disabled={chatLoading || !chatInput.trim()} className="rounded-xl bg-teal-600 px-4 text-white hover:bg-teal-500 disabled:opacity-50">
+                                    <Send className="h-4 w-4" />
+                                </Button>
+                            </form>
                         </CardContent>
                     </Card>
                 </section>

@@ -7,6 +7,8 @@ import healthRoutes from './routes/health.routes';
 import profileRoutes from './routes/profile.routes';
 import stockRoutes from './routes/stock.routes';
 import geminiRoutes from './routes/gemini.routes';
+import favoritesRoutes from './routes/favorites.routes';
+import portfolioRoutes from './routes/portfolio.routes';
 import { notFoundHandler } from './middlewares/notFound';
 import { errorHandler } from './middlewares/errorHandler';
 import { logger } from './utils/logger';
@@ -24,6 +26,8 @@ export const createApp = () => {
     app.use('/api', profileRoutes);
     app.use('/api', stockRoutes);
     app.use('/api', geminiRoutes);
+    app.use('/api', favoritesRoutes);
+    app.use('/api', portfolioRoutes);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

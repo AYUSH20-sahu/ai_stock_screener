@@ -20,6 +20,7 @@ model User {
   holdings         Holding[]
   searchHistories  SearchHistory[]
   savedAnalyses    SavedAnalysis[]
+  favoriteStocks   FavoriteStock[]
 }
 
 model Watchlist {
@@ -78,4 +79,15 @@ model SavedAnalysis {
   updatedAt   DateTime @updatedAt
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FavoriteStock {
+  id        String   @id @default(cuid())
+  symbol    String
+  name      String?
+  addedAt   DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
 }

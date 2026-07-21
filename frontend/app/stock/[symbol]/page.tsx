@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type CandlestickData, type HistogramData, type IChartApi, type LineData, type Time } from 'lightweight-charts';
-import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Landmark, LineChart, MessageSquare, Send, Sparkles, Square, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Heart, Landmark, LineChart, MessageSquare, RefreshCw, Send, Sparkles, Square, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createGeminiInsight } from '@/lib/geminiApi';
 import { getStockCompanyInfo, getStockFinancialRatios, getStockFinancialStatements, getStockPriceHistory, getStockQuote } from '@/lib/stockApi';
+import { addFavorite, getFavorites, removeFavorite } from '@/lib/favoritesApi';
 
 type DataRecord = Record<string, unknown>;
 
@@ -431,6 +432,21 @@ export default function StockDetailPage() {
     const abortControllerRef = useRef<AbortController | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [favoriteLoading, setFavoriteLoading] = useState(false);
+    const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const refreshQuote = useCallback(async () => {
+        try {
+            const quoteResponse = await getStockQuote(symbol);
+            setQuote((quoteResponse?.data as QuoteState) || null);
+            setLastRefreshed(new Date());
+        } catch {
+            // Silently fail on polling
+        }
+    }, [symbol]);
 
     useEffect(() => {
         let isMounted = true;
@@ -454,6 +470,7 @@ export default function StockDetailPage() {
                 setStatements((statementsResponse?.data as FinancialStatements) || null);
                 const historyData = historyResponse?.data as { prices?: PricePoint[] };
                 setPriceHistory(Array.isArray(historyData?.prices) ? historyData.prices : []);
+                setLastRefreshed(new Date());
             } catch (err) {
                 if (!isMounted) {
                     return;
@@ -471,6 +488,51 @@ export default function StockDetailPage() {
             isMounted = false;
         };
     }, [symbol]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const checkFavorite = async () => {
+            try {
+                const response = await getFavorites();
+                if (!isMounted) return;
+                setIsFavorite(response.data.some((fav) => fav.symbol === symbol));
+            } catch {
+                // Not authenticated or API error — treat as not favorited
+            }
+        };
+        checkFavorite();
+        return () => { isMounted = false; };
+    }, [symbol]);
+
+    useEffect(() => {
+        pollIntervalRef.current = setInterval(() => {
+            refreshQuote();
+        }, 30000);
+
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+        };
+    }, [refreshQuote]);
+
+    const toggleFavorite = async () => {
+        if (favoriteLoading) return;
+        setFavoriteLoading(true);
+        try {
+            if (isFavorite) {
+                await removeFavorite(symbol);
+                setIsFavorite(false);
+            } else {
+                await addFavorite(symbol, quote?.shortName || symbol);
+                setIsFavorite(true);
+            }
+        } catch {
+            // Silently fail
+        } finally {
+            setFavoriteLoading(false);
+        }
+    };
 
     const financialData = useMemo(() => {
         const defaultKeyStatistics = (financialRatios?.defaultKeyStatistics as DataRecord | undefined) || {};
@@ -638,14 +700,48 @@ export default function StockDetailPage() {
                 <header className="mb-6 flex flex-col gap-4 border-b border-slate-800 pb-5 md:flex-row md:items-center md:justify-between">
                     <div>
                         <p className="text-sm uppercase tracking-[0.25em] text-teal-300">Stock Details</p>
-                        <h1 className="mt-2 text-3xl font-semibold text-white">{quote?.shortName || symbol}</h1>
+                        <div className="mt-2 flex items-center gap-3">
+                            <h1 className="text-3xl font-semibold text-white">{quote?.shortName || symbol}</h1>
+                            <button
+                                onClick={toggleFavorite}
+                                disabled={favoriteLoading}
+                                className={`rounded-full p-2 transition ${isFavorite ? 'text-red-400 hover:text-red-300' : 'text-slate-500 hover:text-slate-300'}`}
+                                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                            >
+                                <Heart className={`h-5 w-5 ${isFavorite ? 'fill-red-400' : ''}`} />
+                            </button>
+                        </div>
                         <p className="mt-2 text-sm text-slate-400">{symbol} on {quote?.fullExchangeName || quote?.exchangeName || 'market data'}</p>
+                        {lastRefreshed && (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                <RefreshCw className="h-3 w-3" /> Last updated {lastRefreshed.toLocaleTimeString()}
+                                <button
+                                    onClick={() => refreshQuote()}
+                                    className="ml-1 rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-400 hover:bg-slate-800"
+                                >
+                                    Refresh now
+                                </button>
+                            </p>
+                        )}
                     </div>
-                    <Button asChild variant="outline" className="w-fit rounded-lg border-slate-700 text-slate-100 hover:bg-slate-800">
-                        <Link href="/screener" className="flex items-center gap-2">
-                            <ArrowLeft className="h-4 w-4" /> Back to screener
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={toggleFavorite}
+                            disabled={favoriteLoading}
+                            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${isFavorite
+                                ? 'border-red-800/60 bg-red-950/30 text-red-300 hover:bg-red-950/50'
+                                : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                                }`}
+                        >
+                            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-400' : ''}`} />
+                            {isFavorite ? 'Favorited' : 'Favorite'}
+                        </button>
+                        <Button asChild variant="outline" className="w-fit rounded-lg border-slate-700 text-slate-100 hover:bg-slate-800">
+                            <Link href="/screener" className="flex items-center gap-2">
+                                <ArrowLeft className="h-4 w-4" /> Back to screener
+                            </Link>
+                        </Button>
+                    </div>
                 </header>
 
                 {error ? (
@@ -892,8 +988,8 @@ export default function StockDetailPage() {
                                 {chatMessages.map((message) => (
                                     <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user'
-                                                ? 'bg-teal-600/20 text-teal-100'
-                                                : 'bg-slate-800/60 text-slate-200'
+                                            ? 'bg-teal-600/20 text-teal-100'
+                                            : 'bg-slate-800/60 text-slate-200'
                                             }`}>
                                             {message.content}
                                         </div>

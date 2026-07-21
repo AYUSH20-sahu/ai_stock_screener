@@ -40,3 +40,11 @@ export async function getStockFinancialStatements(symbol: string) {
 export async function getStockPriceHistory(symbol: string) {
     return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/history`);
 }
+
+export async function getStockNews(symbol: string) {
+    return requestJson<{ success: boolean; data: Array<{ title: string; summary: string; url: string; publishedAt: string; source: string }> }>(`/api/stocks/${encodeURIComponent(symbol)}/news`);
+}
+
+export async function getRelatedStocks(symbol: string) {
+    return requestJson<{ success: boolean; data: Array<{ symbol: string; name: string; exchange: string }> }>(`/api/stocks/${encodeURIComponent(symbol)}/related`);
+}

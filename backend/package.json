@@ -9,7 +9,10 @@
         "start": "node dist/index.js",
         "prisma:generate": "prisma generate",
         "prisma:migrate": "prisma migrate dev --name init",
-        "prisma:seed": "prisma db seed"
+        "prisma:seed": "prisma db seed",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage"
     },
     "dependencies": {
         "@clerk/backend": "^1.0.0",
@@ -26,10 +29,15 @@
         "@types/compression": "^1.7.0",
         "@types/cors": "^2.8.0",
         "@types/express": "^5.0.6",
+        "@types/jest": "^30.0.0",
         "@types/morgan": "^1.9.10",
         "@types/node": "^22.10.1",
+        "@types/supertest": "^7.2.1",
+        "jest": "^30.4.2",
         "nodemon": "^3.1.14",
         "prisma": "^6.0.0",
+        "supertest": "^7.2.2",
+        "ts-jest": "^29.4.11",
         "ts-node": "^10.9.2",
         "typescript": "^5.6.3"
     },

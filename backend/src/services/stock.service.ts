@@ -2,6 +2,14 @@ import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
 
+interface NewsItem {
+    title: string;
+    summary: string;
+    url: string;
+    publishedAt: string;
+    source: string;
+}
+
 interface YahooFinanceSearchResponse {
     quotes?: Array<{
         symbol?: string;
@@ -230,6 +238,76 @@ class StockService {
         const result = { symbol: normalized, prices };
         this.setCache(cacheKey, result);
         return result;
+    }
+
+    async getStockNews(symbol: string) {
+        const normalized = symbol.trim().toUpperCase();
+        const cacheKey = this.getCacheKey('news', normalized);
+        const cached = this.getCached<NewsItem[]>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            const searchResult = await yahooFinance.search(normalized, { quotesCount: 0, newsCount: 10 }) as { news?: Array<Record<string, unknown>> };
+            const news = (searchResult.news || []).slice(0, 10).map((item: Record<string, unknown>) => ({
+                title: typeof item.title === 'string' ? item.title : 'No title',
+                summary: typeof item.summary === 'string' ? item.summary : 'No summary available.',
+                url: typeof item.link === 'string' ? item.link : '#',
+                publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : new Date().toISOString(),
+                source: typeof item.publisher === 'string' ? item.publisher : 'Unknown',
+            }));
+
+            this.setCache(cacheKey, news, 10 * 60 * 1000); // Cache for 10 minutes
+            return news;
+        } catch {
+            return [];
+        }
+    }
+
+    async getRelatedStocks(symbol: string) {
+        const normalized = symbol.trim().toUpperCase();
+        const cacheKey = this.getCacheKey('related', normalized);
+        const cached = this.getCached<Array<{ symbol: string; name: string; exchange: string }>>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            // Search for similar companies based on sector/industry
+            const quote = await yahooFinance.quoteSummary(normalized, { modules: ['assetProfile'] }) as Record<string, unknown>;
+            const assetProfile = quote.assetProfile as Record<string, unknown> | undefined;
+            const sector = typeof assetProfile?.sector === 'string' ? assetProfile.sector : '';
+            const industry = typeof assetProfile?.industry === 'string' ? assetProfile.industry : '';
+
+            let relatedSymbols: string[] = [];
+            if (sector) {
+                const searchResult = await yahooFinance.search(sector, { quotesCount: 6, newsCount: 0 }) as { quotes?: Array<{ symbol?: string }> };
+                relatedSymbols = (searchResult.quotes || [])
+                    .filter((q) => q.symbol && q.symbol !== normalized)
+                    .slice(0, 5)
+                    .map((q) => q.symbol!);
+            }
+
+            const relatedStocks = [];
+            for (const sym of relatedSymbols) {
+                try {
+                    const q = await yahooFinance.quote(sym) as Record<string, unknown>;
+                    relatedStocks.push({
+                        symbol: typeof q.symbol === 'string' ? q.symbol : sym,
+                        name: typeof q.shortName === 'string' ? q.shortName : (typeof q.longName === 'string' ? q.longName : sym),
+                        exchange: typeof q.exchangeName === 'string' ? q.exchangeName : 'N/A',
+                    });
+                } catch {
+                    // Skip if quote fetch fails
+                }
+            }
+
+            this.setCache(cacheKey, relatedStocks, 30 * 60 * 1000); // Cache for 30 minutes
+            return relatedStocks;
+        } catch {
+            return [];
+        }
     }
 }
 

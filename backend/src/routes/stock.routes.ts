@@ -9,5 +9,7 @@ router.get('/stocks/:symbol/company', stockController.getCompanyInfo);
 router.get('/stocks/:symbol/ratios', stockController.getFinancialRatios);
 router.get('/stocks/:symbol/statements', stockController.getFinancialStatements);
 router.get('/stocks/:symbol/history', stockController.getPriceHistory);
+router.get('/stocks/:symbol/news', stockController.getStockNews);
+router.get('/stocks/:symbol/related', stockController.getRelatedStocks);
 
 export default router;

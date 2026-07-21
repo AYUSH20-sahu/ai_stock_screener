@@ -5,7 +5,10 @@
         "dev": "next dev --hostname 0.0.0.0 --port 3000",
         "build": "next build",
         "start": "next start --hostname 0.0.0.0 --port 3000",
-        "lint": "next lint"
+        "lint": "next lint",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage"
     },
     "dependencies": {
         "@clerk/nextjs": "^5.0.0",
@@ -21,14 +24,21 @@
         "tailwind-merge": "^2.4.0"
     },
     "devDependencies": {
+        "@testing-library/jest-dom": "^7.0.0",
+        "@testing-library/react": "^16.3.2",
+        "@testing-library/user-event": "^14.6.1",
+        "@types/jest": "^30.0.0",
         "@types/node": "^22.10.1",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "autoprefixer": "^10.4.20",
         "eslint": "^9.15.0",
         "eslint-config-next": "15.3.2",
+        "jest": "^30.4.2",
+        "jest-environment-jsdom": "^30.4.1",
         "postcss": "^8.4.49",
         "tailwindcss": "^3.4.9",
+        "ts-jest": "^29.4.11",
         "typescript": "^5.6.3"
     }
 }

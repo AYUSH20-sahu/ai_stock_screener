@@ -3,12 +3,45 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const clientCache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+
+    return debouncedValue;
+}
+
+function getCachedData<T>(key: string): T | null {
+    const entry = clientCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+        clientCache.delete(key);
+        return null;
+    }
+    return entry.data as T;
+}
+
+function setCachedData(key: string, data: unknown) {
+    clientCache.set(key, { data, timestamp: Date.now() });
+}
 import { CandlestickSeries, ColorType, createChart, HistogramSeries, LineSeries, type CandlestickData, type HistogramData, type IChartApi, type LineData, type Time } from 'lightweight-charts';
-import { ArrowLeft, BarChart3, Bot, Building2, CircleDollarSign, Heart, Landmark, LineChart, MessageSquare, RefreshCw, Send, Sparkles, Square, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Bot, Building2, CircleDollarSign, Heart, Landmark, LineChart, MessageSquare, Newspaper, RefreshCw, Send, Sparkles, Square, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createGeminiInsight } from '@/lib/geminiApi';
-import { getStockCompanyInfo, getStockFinancialRatios, getStockFinancialStatements, getStockPriceHistory, getStockQuote } from '@/lib/stockApi';
+import { getStockCompanyInfo, getStockFinancialRatios, getStockFinancialStatements, getStockNews, getStockPriceHistory, getStockQuote, getRelatedStocks } from '@/lib/stockApi';
 import { addFavorite, getFavorites, removeFavorite } from '@/lib/favoritesApi';
 
 type DataRecord = Record<string, unknown>;
@@ -258,9 +291,10 @@ function filterAdvisoryLanguage(text: string) {
 }
 
 function AnalysisList({ items }: { items: string[] }) {
+    const memoizedItems = useMemo(() => items, [items]);
     return (
         <div className="space-y-2">
-            {(items.length ? items : ['No generated detail available.']).map((item) => (
+            {(memoizedItems.length ? memoizedItems : ['No generated detail available.']).map((item) => (
                 <p key={item} className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm leading-6 text-slate-300">
                     {item}
                 </p>
@@ -435,13 +469,55 @@ export default function StockDetailPage() {
     const [isFavorite, setIsFavorite] = useState(false);
     const [favoriteLoading, setFavoriteLoading] = useState(false);
     const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+    const [news, setNews] = useState<Array<{ title: string; summary: string; url: string; publishedAt: string; source: string }>>([]);
+    const [relatedStocks, setRelatedStocks] = useState<Array<{ symbol: string; name: string; exchange: string }>>([]);
+    const [newsLoading, setNewsLoading] = useState(true);
+    const [relatedLoading, setRelatedLoading] = useState(true);
 
     const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    useEffect(() => {
+        if (quote?.shortName || symbol) {
+            document.title = `${quote?.shortName || symbol} (${symbol}) | AI Stock Screener`;
+        }
+    }, [quote?.shortName, symbol]);
+
+    function useInView(options?: IntersectionObserverInit) {
+        const ref = useRef<HTMLDivElement | null>(null);
+        const [isInView, setIsInView] = useState(false);
+
+        useEffect(() => {
+            const element = ref.current;
+            if (!element) return;
+            const observer = new IntersectionObserver(([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsInView(true);
+                    observer.disconnect();
+                }
+            }, options);
+            observer.observe(element);
+            return () => observer.disconnect();
+        }, [options]);
+
+        return { ref, isInView };
+    }
+
     const refreshQuote = useCallback(async () => {
         try {
+            const cacheKey = `quote:${symbol}`;
+            const cached = getCachedData<QuoteState>(cacheKey);
+            if (cached) {
+                setQuote(cached);
+                setLastRefreshed(new Date());
+                return;
+            }
+
             const quoteResponse = await getStockQuote(symbol);
-            setQuote((quoteResponse?.data as QuoteState) || null);
+            const data = (quoteResponse?.data as QuoteState) || null;
+            if (data) {
+                setCachedData(cacheKey, data);
+            }
+            setQuote(data);
             setLastRefreshed(new Date());
         } catch {
             // Silently fail on polling
@@ -454,12 +530,14 @@ export default function StockDetailPage() {
             setLoading(true);
             setError(null);
             try {
-                const [quoteResponse, companyResponse, ratiosResponse, statementsResponse, historyResponse] = await Promise.all([
+                const [quoteResponse, companyResponse, ratiosResponse, statementsResponse, historyResponse, newsResponse, relatedResponse] = await Promise.all([
                     getStockQuote(symbol),
                     getStockCompanyInfo(symbol),
                     getStockFinancialRatios(symbol),
                     getStockFinancialStatements(symbol),
                     getStockPriceHistory(symbol),
+                    getStockNews(symbol),
+                    getRelatedStocks(symbol),
                 ]);
                 if (!isMounted) {
                     return;
@@ -470,6 +548,8 @@ export default function StockDetailPage() {
                 setStatements((statementsResponse?.data as FinancialStatements) || null);
                 const historyData = historyResponse?.data as { prices?: PricePoint[] };
                 setPriceHistory(Array.isArray(historyData?.prices) ? historyData.prices : []);
+                setNews(newsResponse?.data || []);
+                setRelatedStocks(relatedResponse?.data || []);
                 setLastRefreshed(new Date());
             } catch (err) {
                 if (!isMounted) {
@@ -479,6 +559,8 @@ export default function StockDetailPage() {
             } finally {
                 if (isMounted) {
                     setLoading(false);
+                    setNewsLoading(false);
+                    setRelatedLoading(false);
                 }
             }
         };
@@ -838,33 +920,6 @@ export default function StockDetailPage() {
                     </Card>
                 </section>
 
-                <section className="grid gap-6 xl:grid-cols-2">
-                    <Card className="border-slate-800/80 bg-slate-900/70">
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <TrendingUp className="h-5 w-5 text-teal-300" />
-                                <CardTitle>Income Statement</CardTitle>
-                            </div>
-                            <CardDescription className="text-slate-400">Latest annual statement</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {incomeRows.map((row) => <StatementRow key={row.label} label={row.label} value={row.value} />)}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-slate-800/80 bg-slate-900/70">
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <Landmark className="h-5 w-5 text-teal-300" />
-                                <CardTitle>Balance Sheet</CardTitle>
-                            </div>
-                            <CardDescription className="text-slate-400">Latest annual position</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {balanceRows.map((row) => <StatementRow key={row.label} label={row.label} value={row.value} />)}
-                        </CardContent>
-                    </Card>
-                </section>
 
                 <section className="mt-6 grid gap-6 xl:grid-cols-2">
                     <Card className="border-slate-800/80 bg-slate-900/70">
@@ -1026,6 +1081,78 @@ export default function StockDetailPage() {
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </form>
+                        </CardContent>
+                    </Card>
+                </section>
+
+                <section className="mt-6 grid gap-6 lg:grid-cols-2">
+                    <Card className="border-slate-800/80 bg-slate-900/70">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Newspaper className="h-5 w-5 text-teal-300" />
+                                <CardTitle>Latest News</CardTitle>
+                            </div>
+                            <CardDescription className="text-slate-400">Recent news and updates</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {newsLoading ? (
+                                <div className="text-sm text-slate-400">Loading news...</div>
+                            ) : news.length === 0 ? (
+                                <div className="text-sm text-slate-400">No recent news available.</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {news.map((item, index) => (
+                                        <a
+                                            key={`${item.url}-${index}`}
+                                            href={item.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="block rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition hover:border-slate-700"
+                                        >
+                                            <p className="text-sm font-medium text-white">{item.title}</p>
+                                            <p className="mt-1 line-clamp-2 text-sm text-slate-400">{item.summary}</p>
+                                            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                                                <span>{item.source}</span>
+                                                <span>•</span>
+                                                <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-800/80 bg-slate-900/70">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <ArrowRight className="h-5 w-5 text-teal-300" />
+                                <CardTitle>Related Stocks</CardTitle>
+                            </div>
+                            <CardDescription className="text-slate-400">Companies in the same sector</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {relatedLoading ? (
+                                <div className="text-sm text-slate-400">Loading related stocks...</div>
+                            ) : relatedStocks.length === 0 ? (
+                                <div className="text-sm text-slate-400">No related stocks found.</div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {relatedStocks.map((stock) => (
+                                        <Link
+                                            key={stock.symbol}
+                                            href={`/stock/${encodeURIComponent(stock.symbol)}`}
+                                            className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 transition hover:border-slate-700"
+                                        >
+                                            <div>
+                                                <p className="text-sm font-medium text-white">{stock.symbol}</p>
+                                                <p className="text-xs text-slate-400">{stock.name}</p>
+                                            </div>
+                                            <span className="text-xs text-slate-500">{stock.exchange}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </section>

@@ -1,5 +1,7 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { ArrowRight, BarChart3, Bot, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +41,26 @@ const faqs = [
 ];
 
 export default function HomePage() {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState<{ email?: string } | null>(null);
+
+    useEffect(() => {
+        checkAuth();
+    }, []);
+
+    const checkAuth = async () => {
+        try {
+            const response = await fetch('/api/auth/me');
+            if (response.ok) {
+                const data = await response.json();
+                setIsAuthenticated(true);
+                setUser(data.data.user);
+            }
+        } catch (error) {
+            setIsAuthenticated(false);
+        }
+    };
+
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,_#020617_0%,_#030712_100%)] text-slate-100">
             <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
@@ -59,19 +81,20 @@ export default function HomePage() {
                             <a href="#cta" className="transition hover:text-white">Launch</a>
                         </nav>
                         <div className="flex items-center gap-2">
-                            <SignedOut>
-                                <Link href="/sign-in" className="hidden rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800 sm:inline-flex">
+                            {!isAuthenticated ? (
+                                <Link href="/login" className="hidden rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800 sm:inline-flex">
                                     Sign in
                                 </Link>
-                            </SignedOut>
-                            <SignedIn>
-                                <UserButton afterSignOutUrl="/" />
-                            </SignedIn>
-                            <Button asChild size="sm" className="rounded-full bg-cyan-400 px-4 text-slate-950 hover:bg-cyan-300">
-                                <Link href="/profile">
-                                    Open app <ArrowRight className="ml-2 h-4 w-4" />
-                                </Link>
-                            </Button>
+                            ) : (
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-slate-300">{user?.email}</span>
+                                    <Button asChild size="sm" className="rounded-full bg-cyan-400 px-4 text-slate-950 hover:bg-cyan-300">
+                                        <Link href="/profile">
+                                            Open app <ArrowRight className="ml-2 h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </header>

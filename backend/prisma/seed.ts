@@ -1,15 +1,20 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
+    // Hash a demo password
+    const demoPassword = 'Demo123!';
+    const passwordHash = await bcrypt.hash(demoPassword, 10);
+
     const user = await prisma.user.upsert({
         where: { email: 'demo@example.com' },
         update: {},
         create: {
-            clerkId: 'demo-clerk-id',
             email: 'demo@example.com',
             fullName: 'Demo User',
+            passwordHash: passwordHash,
         },
     });
 
@@ -38,8 +43,8 @@ async function main() {
 
 main()
     .catch((error) => {
-        console.error(error);
-        process.exit(1);
+        console.error('Seed error:', error);
+        throw error;
     })
     .finally(async () => {
         await prisma.$disconnect();

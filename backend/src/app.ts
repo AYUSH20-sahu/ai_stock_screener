@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import healthRoutes from './routes/health.routes';
+import authRoutes from './routes/auth.routes';
 import profileRoutes from './routes/profile.routes';
 import stockRoutes from './routes/stock.routes';
 import geminiRoutes from './routes/gemini.routes';
@@ -32,6 +33,7 @@ export const createApp = () => {
     app.use(express.json());
 
     app.use('/api', healthRoutes);
+    app.use('/api', authRoutes);
     app.use('/api', profileRoutes);
     app.use('/api', stockRoutes);
     app.use('/api', geminiRoutes);

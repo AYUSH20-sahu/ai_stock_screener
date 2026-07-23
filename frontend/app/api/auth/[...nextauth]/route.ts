@@ -1,88 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { proxyAuthRequest } from '@/lib/authProxy';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+/**
+ * Handles /api/auth/{path} sub-paths (e.g. /api/auth/me, /api/auth/logout).
+ *
+ * The endpoint is extracted from the URL path segment rather than relying
+ * solely on the ?endpoint= query parameter. This fixes the logout flow where
+ * POST /api/auth/logout was incorrectly forwarded as /api/auth/login.
+ */
+function extractEndpoint(request: NextRequest): string {
+    // pathname looks like /api/auth/me  →  segments = ['api', 'auth', 'me']
+    const segments = request.nextUrl.pathname.split('/').filter(Boolean);
+    const pathEndpoint = segments[2]; // the segment after /api/auth/
+
+    if (pathEndpoint) {
+        return pathEndpoint;
+    }
+
+    // Fall back to query param for backward compatibility
+    return request.nextUrl.searchParams.get('endpoint') || 'me';
+}
 
 export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json();
-
-        const endpoint = request.nextUrl.searchParams.get('endpoint') || 'login';
-
-        const response = await fetch(`${BACKEND_URL}/api/auth/${endpoint}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            credentials: 'include',
-        });
-
-        const data = await response.json();
-
-        // Forward cookies from backend to frontend
-        const cookies = response.headers.get('set-cookie');
-        if (cookies) {
-            const cookieArray = cookies.split(', ');
-            cookieArray.forEach(cookie => {
-                const [nameValue] = cookie.split(';');
-                const [name, value] = nameValue.split('=');
-                if (name && value) {
-                    NextResponse.next().cookies.set(name, value, {
-                        httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
-                        sameSite: 'strict',
-                    });
-                }
-            });
-        }
-
-        return NextResponse.json(data, { status: response.status });
-    } catch (error) {
-        console.error('Auth API error:', error);
-        return NextResponse.json(
-            { success: false, message: 'Internal server error' },
-            { status: 500 }
-        );
-    }
+    const endpoint = extractEndpoint(request);
+    return proxyAuthRequest(request, endpoint);
 }
 
 export async function GET(request: NextRequest) {
-    try {
-        const endpoint = request.nextUrl.searchParams.get('endpoint') || 'me';
-
-        const response = await fetch(`${BACKEND_URL}/api/auth/${endpoint}`, {
-            method: 'GET',
-            headers: {
-                'Cookie': request.headers.get('cookie') || '',
-            },
-            credentials: 'include',
-        });
-
-        const data = await response.json();
-
-        // Forward cookies
-        const cookies = response.headers.get('set-cookie');
-        if (cookies) {
-            const cookieArray = cookies.split(', ');
-            cookieArray.forEach(cookie => {
-                const [nameValue] = cookie.split(';');
-                const [name, value] = nameValue.split('=');
-                if (name && value) {
-                    NextResponse.next().cookies.set(name, value, {
-                        httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
-                        sameSite: 'strict',
-                    });
-                }
-            });
-        }
-
-        return NextResponse.json(data, { status: response.status });
-    } catch (error) {
-        console.error('Auth API error:', error);
-        return NextResponse.json(
-            { success: false, message: 'Internal server error' },
-            { status: 500 }
-        );
-    }
+    const endpoint = extractEndpoint(request);
+    return proxyAuthRequest(request, endpoint);
 }

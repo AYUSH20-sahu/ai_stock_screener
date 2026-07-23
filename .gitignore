@@ -3,8 +3,7 @@ dist/
 .next/
 out/
 .env
-frontend/.env.example
-backend/.env.example
+.env.example
 .env.local
 .env.development.local
 .env.test.local

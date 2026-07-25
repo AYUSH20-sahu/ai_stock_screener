@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowRight, BarChart3, Bot, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';

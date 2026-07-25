@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BarChart3, Bot, LineChart, Plus, RefreshCw, Send, Sparkles, Square, TrendingDown, TrendingUp, X } from 'lucide-react';
@@ -232,7 +234,7 @@ export default function ComparePage() {
     useEffect(() => {
         setLoading(true);
         Promise.all(symbolInputs.map((sym, i) => fetchStock(sym, i))).finally(() => setLoading(false));
-    }, []);
+    }, [fetchStock, symbolInputs]);
 
     const chartSeries = useMemo(() => {
         return stocks.map((stock, i) => {

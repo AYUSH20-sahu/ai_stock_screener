@@ -1,48 +1,98 @@
 "use client";
 
 import * as React from 'react';
-import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const Accordion = AccordionPrimitive.Root;
+type AccordionContextValue = {
+    openValue: string | null;
+    toggleValue: (value: string) => void;
+};
 
-const AccordionItem = React.forwardRef<
-    React.ElementRef<typeof AccordionPrimitive.Item>,
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
->(({ className, ...props }, ref) => (
-    <AccordionPrimitive.Item ref={ref} className={cn('border-b border-slate-800', className)} {...props} />
-));
-AccordionItem.displayName = AccordionPrimitive.Item.displayName;
+const AccordionContext = React.createContext<AccordionContextValue>({
+    openValue: null,
+    toggleValue: () => undefined,
+});
 
-const AccordionTrigger = React.forwardRef<
-    React.ElementRef<typeof AccordionPrimitive.Trigger>,
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-    <AccordionPrimitive.Header className="flex">
-        <AccordionPrimitive.Trigger
+type AccordionProps = React.HTMLAttributes<HTMLDivElement> & {
+    type?: 'single';
+    collapsible?: boolean;
+    children: React.ReactNode;
+};
+
+function Accordion({ className, children, ...props }: AccordionProps) {
+    const [openValue, setOpenValue] = React.useState<string | null>(null);
+
+    const toggleValue = React.useCallback((value: string) => {
+        setOpenValue((current) => (current === value ? null : value));
+    }, []);
+
+    return (
+        <AccordionContext.Provider value={{ openValue, toggleValue }}>
+            <div className={cn('w-full', className)} {...props}>
+                {children}
+            </div>
+        </AccordionContext.Provider>
+    );
+}
+
+type AccordionItemProps = React.HTMLAttributes<HTMLDivElement> & {
+    value: string;
+};
+
+const AccordionItem = React.forwardRef<HTMLDivElement, AccordionItemProps>(({ className, children, value, ...props }, ref) => {
+    const childElements = React.Children.map(children, (child) => {
+        if (React.isValidElement(child)) {
+            return React.cloneElement(child as React.ReactElement<{ value?: string }>, { value });
+        }
+        return child;
+    });
+
+    return (
+        <div ref={ref} className={cn('border-b border-slate-800', className)} {...props}>
+            {childElements}
+        </div>
+    );
+});
+AccordionItem.displayName = 'AccordionItem';
+
+type AccordionTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    value?: string;
+};
+
+const AccordionTrigger = React.forwardRef<HTMLButtonElement, AccordionTriggerProps>(({ className, children, value, ...props }, ref) => {
+    const { openValue, toggleValue } = React.useContext(AccordionContext);
+    const isOpen = value != null && openValue === value;
+
+    return (
+        <button
             ref={ref}
-            className={cn(
-                'flex flex-1 items-center justify-between py-4 text-left text-sm font-medium text-slate-100 transition-all hover:text-white [&[data-state=open]>svg]:rotate-180',
-                className,
-            )}
+            type="button"
+            className={cn('flex w-full flex-1 items-center justify-between py-4 text-left text-sm font-medium text-slate-100 transition-all hover:text-white', className)}
+            onClick={() => value != null && toggleValue(value)}
             {...props}
         >
-            {children}
-            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-        </AccordionPrimitive.Trigger>
-    </AccordionPrimitive.Header>
-));
-AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
+            <span>{children}</span>
+            <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform duration-200', isOpen && 'rotate-180')} />
+        </button>
+    );
+});
+AccordionTrigger.displayName = 'AccordionTrigger';
 
-const AccordionContent = React.forwardRef<
-    React.ElementRef<typeof AccordionPrimitive.Content>,
-    React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-    <AccordionPrimitive.Content ref={ref} className="overflow-hidden text-sm text-slate-400 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down" {...props}>
-        <div className={cn('pb-4 pt-0', className)}>{children}</div>
-    </AccordionPrimitive.Content>
-));
-AccordionContent.displayName = AccordionPrimitive.Content.displayName;
+type AccordionContentProps = React.HTMLAttributes<HTMLDivElement> & {
+    value?: string;
+};
+
+const AccordionContent = React.forwardRef<HTMLDivElement, AccordionContentProps>(({ className, children, value, ...props }, ref) => {
+    const { openValue } = React.useContext(AccordionContext);
+    if (value == null || openValue !== value) return null;
+
+    return (
+        <div ref={ref} className={cn('overflow-hidden text-sm text-slate-400', className)} {...props}>
+            <div className="pb-4 pt-0">{children}</div>
+        </div>
+    );
+});
+AccordionContent.displayName = 'AccordionContent';
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };

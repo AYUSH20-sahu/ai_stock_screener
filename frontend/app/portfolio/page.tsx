@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BarChart3, DollarSign, Edit2, PieChart, Plus, RefreshCw, Target, Trash2, TrendingDown, TrendingUp, Wallet2, X } from 'lucide-react';
@@ -181,7 +183,7 @@ export default function PortfolioPage() {
 
     useEffect(() => {
         loadPortfolios();
-    }, []);
+    }, [loadPortfolios]);
 
     const activePortfolio = useMemo(() => portfolios.find((p) => p.id === activePortfolioId), [portfolios, activePortfolioId]);
     const allHoldings = useMemo(() => activePortfolio?.holdings || [], [activePortfolio]);
@@ -209,11 +211,13 @@ export default function PortfolioPage() {
                     newCache[symbol] = { price: null, sector: null };
                 }
             }
-            if (isMounted) setQuoteCache(newCache);
+            if (isMounted) {
+                setQuoteCache((prev) => ({ ...prev, ...newCache }));
+            }
         };
         fetchQuotes();
         return () => { isMounted = false; };
-    }, [allHoldings.length > 0 ? allHoldings.map((h) => h.symbol).join(',') : '']);
+    }, [allHoldings, quoteCache]);
 
     const totalInvested = useMemo(() => allHoldings.reduce((s, h) => s + h.investedAmount, 0), [allHoldings]);
     const totalCurrent = useMemo(() => allHoldings.reduce((s, h) => {

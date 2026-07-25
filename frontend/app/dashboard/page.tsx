@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Bot, CircleDollarSign, Newspaper, PieChart, Search, SlidersHorizontal, Sparkles, TrendingDown, TrendingUp, Trophy, Wallet2 } from 'lucide-react';

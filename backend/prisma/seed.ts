@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/services/prisma.service';
 
 async function main() {
     // Hash a demo password

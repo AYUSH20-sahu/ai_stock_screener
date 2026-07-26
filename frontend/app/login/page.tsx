@@ -3,19 +3,20 @@
 export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, LockKeyhole, Mail, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { login } from '@/lib/auth';
 
 export default function LoginPage() {
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,21 +24,9 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/auth/?endpoint=login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, password }),
-            });
+            await login(email, password);
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Login failed');
-            }
-
-            router.push('/profile');
+            router.replace('/dashboard');
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Login failed');
@@ -52,10 +41,11 @@ export default function LoginPage() {
             <div className="absolute -left-10 top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
             <div className="absolute bottom-8 right-8 h-72 w-72 rounded-full bg-fuchsia-500/10 blur-3xl" />
 
-            <div className="relative w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/70 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl">
+            <div className="relative w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] shadow-2xl shadow-cyan-950/30 backdrop-blur-xl">
                 <div className="grid lg:grid-cols-[0.95fr_1.05fr]">
-                    <section className="relative hidden flex-col justify-between overflow-hidden bg-[linear-gradient(135deg,_rgba(34,211,238,0.18),_rgba(15,23,42,0.96))] p-8 lg:flex">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.18),_transparent_30%)]" />
+                    <section className="relative hidden flex-col justify-between overflow-hidden bg-[linear-gradient(135deg,_rgba(8,145,178,0.24),_rgba(15,23,42,0.96))] p-8 lg:flex">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.16),_transparent_30%)]" />
+                        <div className="absolute left-6 top-6 h-24 w-24 rounded-full border border-white/10 bg-white/[0.04] blur-none" />
                         <div className="relative space-y-6">
                             <Link href="/" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/20">
                                 <ArrowLeft className="h-4 w-4" />
@@ -92,10 +82,10 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <Card className="border-slate-800 bg-slate-900/70 shadow-none">
+                        <Card className="border-white/10 bg-white/[0.04] shadow-none">
                             <CardHeader className="pb-4">
                                 <CardTitle className="text-2xl text-white">Welcome back</CardTitle>
-                                <CardDescription>Enter your credentials to continue securely.</CardDescription>
+                                <CardDescription className="text-slate-400">Enter your credentials to continue securely.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -117,7 +107,7 @@ export default function LoginPage() {
                                                 onChange={(e) => setEmail(e.target.value)}
                                                 required
                                                 placeholder="you@example.com"
-                                                className="h-12 border-slate-700 bg-slate-950/70 pl-10 text-white placeholder:text-slate-500"
+                                                className="h-12 border-white/10 bg-slate-950/70 pl-10 text-white placeholder:text-slate-500"
                                             />
                                         </div>
                                     </div>
@@ -134,7 +124,7 @@ export default function LoginPage() {
                                                 onChange={(e) => setPassword(e.target.value)}
                                                 required
                                                 placeholder="••••••••"
-                                                className="h-12 border-slate-700 bg-slate-950/70 pl-10 text-white placeholder:text-slate-500"
+                                                className="h-12 border-white/10 bg-slate-950/70 pl-10 text-white placeholder:text-slate-500"
                                             />
                                         </div>
                                     </div>

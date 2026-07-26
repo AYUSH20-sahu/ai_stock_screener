@@ -13,7 +13,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:300
  */
 export async function proxyAuthRequest(request: NextRequest, endpoint: string) {
     try {
-        const url = `${BACKEND_URL}/api/auth/${endpoint}`;
+        const url = `${BACKEND_URL}/api/${endpoint}`;
 
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -68,7 +68,8 @@ export async function proxyAuthRequest(request: NextRequest, endpoint: string) {
         if (setCookieHeaders && setCookieHeaders.length > 0) {
             setCookieHeaders.forEach((cookie) => {
                 const parts = cookie.split(';');
-                const [name, value] = parts[0].trim().split('=');
+                const [name, ...valueParts] = parts[0].trim().split('=');
+                const value = valueParts.join('=');
 
                 // Parse max-age so cookie expiry is preserved
                 let maxAge: number | undefined;

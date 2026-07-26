@@ -13,10 +13,6 @@ services:
         value: 5000
       - key: FRONTEND_URL
         value: https://ai-stock-screener.vercel.app
-      - key: CLERK_SECRET_KEY
-        sync: false
-      - key: CLERK_PUBLISHABLE_KEY
-        sync: false
       - key: DATABASE_URL
         sync: false
       - key: GEMINI_API_KEY

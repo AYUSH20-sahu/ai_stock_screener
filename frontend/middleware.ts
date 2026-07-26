@@ -3,10 +3,16 @@ import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
     const accessToken = req.cookies.get('accessToken');
+    const { pathname } = req.nextUrl;
+
+    // Never run auth-page redirects for API routes.
+    if (pathname.startsWith('/api/')) {
+        return NextResponse.next();
+    }
 
     // Public routes that don't require authentication
     const publicRoutes = ['/', '/sign-in', '/sign-up', '/login', '/register'];
-    const isPublicRoute = publicRoutes.some(route => req.nextUrl.pathname === route);
+    const isPublicRoute = publicRoutes.some(route => pathname === route);
 
     if (isPublicRoute) {
         return NextResponse.next();

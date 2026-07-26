@@ -20,7 +20,7 @@ type AccordionProps = React.HTMLAttributes<HTMLDivElement> & {
     children: React.ReactNode;
 };
 
-function Accordion({ className, children, ...props }: AccordionProps) {
+function Accordion({ className, children }: AccordionProps) {
     const [openValue, setOpenValue] = React.useState<string | null>(null);
 
     const toggleValue = React.useCallback((value: string) => {
@@ -29,7 +29,7 @@ function Accordion({ className, children, ...props }: AccordionProps) {
 
     return (
         <AccordionContext.Provider value={{ openValue, toggleValue }}>
-            <div className={cn('w-full', className)} {...props}>
+            <div className={cn('w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-4 shadow-[0_24px_70px_-42px_rgba(2,8,23,0.8)] backdrop-blur-xl sm:px-5', className)}>
                 {children}
             </div>
         </AccordionContext.Provider>
@@ -49,7 +49,7 @@ const AccordionItem = React.forwardRef<HTMLDivElement, AccordionItemProps>(({ cl
     });
 
     return (
-        <div ref={ref} className={cn('border-b border-slate-800', className)} {...props}>
+        <div ref={ref} className={cn('border-b border-white/10 last:border-b-0', className)} {...props}>
             {childElements}
         </div>
     );
@@ -68,7 +68,7 @@ const AccordionTrigger = React.forwardRef<HTMLButtonElement, AccordionTriggerPro
         <button
             ref={ref}
             type="button"
-            className={cn('flex w-full flex-1 items-center justify-between py-4 text-left text-sm font-medium text-slate-100 transition-all hover:text-white', className)}
+            className={cn('flex w-full flex-1 items-center justify-between py-4 text-left text-sm font-medium text-slate-100 transition-all hover:text-cyan-200', className)}
             onClick={() => value != null && toggleValue(value)}
             {...props}
         >
@@ -88,8 +88,8 @@ const AccordionContent = React.forwardRef<HTMLDivElement, AccordionContentProps>
     if (value == null || openValue !== value) return null;
 
     return (
-        <div ref={ref} className={cn('overflow-hidden text-sm text-slate-400', className)} {...props}>
-            <div className="pb-4 pt-0">{children}</div>
+        <div ref={ref} className={cn('overflow-hidden text-sm text-slate-300', className)} {...props}>
+            <div className="pb-4 pt-0 leading-7">{children}</div>
         </div>
     );
 });

@@ -1,16 +1,5 @@
-import { SignIn } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
 export default function SignInPage() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <SignIn />
-    </div>
-  );
+  redirect("/login");
 }

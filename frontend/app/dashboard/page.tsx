@@ -111,15 +111,16 @@ export default function DashboardPage() {
     }, [quote, selectedSymbol]);
 
     return (
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_30%),linear-gradient(135deg,_#020617_0%,_#030712_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+        <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_28%),radial-gradient(circle_at_85%_10%,_rgba(99,102,241,0.16),_transparent_24%),linear-gradient(135deg,_#020617_0%,_#030712_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-7xl">
-                <header className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-950/75 px-5 py-5 shadow-xl shadow-slate-950/30 backdrop-blur md:flex-row md:items-center md:justify-between">
+                <header className="mb-8 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] px-5 py-5 shadow-2xl shadow-cyan-950/20 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
                     <div>
                         <p className="text-sm uppercase tracking-[0.35em] text-cyan-300">Dashboard</p>
                         <h1 className="mt-2 text-3xl font-semibold text-white">Market pulse at a glance</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-slate-400">A cinematic workspace for scanning, comparing, and acting on market ideas without losing context.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                        <Button asChild variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
+                        <Button asChild variant="outline" className="rounded-full border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-cyan-400/10">
                             <Link href="/">Back home</Link>
                         </Button>
                         <Button asChild className="rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">
@@ -127,25 +128,25 @@ export default function DashboardPage() {
                                 <SlidersHorizontal className="h-4 w-4" /> Open screener
                             </Link>
                         </Button>
-                        <Button asChild variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
+                        <Button asChild variant="outline" className="rounded-full border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-cyan-400/10">
                             <Link href="/compare" className="flex items-center gap-2">
                                 <BarChart3 className="h-4 w-4" /> Compare
                             </Link>
                         </Button>
-                        <Button asChild variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
+                        <Button asChild variant="outline" className="rounded-full border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-cyan-400/10">
                             <Link href="/portfolio" className="flex items-center gap-2">
                                 <PieChart className="h-4 w-4" /> Portfolio
                             </Link>
                         </Button>
-                        <Button asChild variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
+                        <Button asChild variant="outline" className="rounded-full border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-cyan-400/10">
                             <Link href="/profile">View profile</Link>
                         </Button>
                     </div>
                 </header>
 
-                <section className="mb-6 rounded-3xl border border-slate-800 bg-slate-950/70 p-4 shadow-xl shadow-slate-950/20">
+                <section className="mb-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex-1 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                        <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
                             <div className="flex items-center gap-2 text-sm text-slate-400">
                                 <Search className="h-4 w-4 text-cyan-300" />
                                 <span>Stock search</span>
@@ -155,7 +156,7 @@ export default function DashboardPage() {
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
                                     placeholder="Search ticker or company"
-                                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-0"
+                                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500"
                                 />
                                 <Button onClick={() => setSelectedSymbol(query.trim().toUpperCase() || 'AAPL')} className="rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300">
                                     Search
@@ -164,13 +165,13 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {searchResults.slice(0, 4).map((result) => (
-                                <button
-                                    key={result.symbol}
-                                    onClick={() => setSelectedSymbol(result.symbol)}
-                                    className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500/50 hover:text-white"
-                                >
-                                    {result.symbol}
-                                </button>
+                                    <button
+                                        key={result.symbol}
+                                        onClick={() => setSelectedSymbol(result.symbol)}
+                                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500/50 hover:text-white hover:bg-cyan-400/10"
+                                    >
+                                        {result.symbol}
+                                    </button>
                             ))}
                         </div>
                     </div>
@@ -178,7 +179,7 @@ export default function DashboardPage() {
 
                 <section className="grid gap-4 md:grid-cols-3">
                     {marketSummary.map((item) => (
-                        <Card key={item.label} className="border-slate-800/80 bg-slate-900/70">
+                        <Card key={item.label} className="border-white/10 bg-white/[0.04]">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base text-slate-300">{item.label}</CardTitle>
                             </CardHeader>
@@ -197,7 +198,7 @@ export default function DashboardPage() {
 
                 <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                     <div className="grid gap-6">
-                        <Card className="border-slate-800/80 bg-slate-900/70">
+                        <Card className="border-white/10 bg-white/[0.04]">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
                                     <Trophy className="h-5 w-5 text-cyan-300" />
@@ -215,12 +216,12 @@ export default function DashboardPage() {
                                     <p className="text-sm text-rose-400">{error}</p>
                                 ) : (
                                     <>
-                                        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                                        <div className="rounded-xl border border-white/10 bg-slate-950/60 p-4">
                                             <p className="text-sm text-slate-400">Company</p>
                                             <p className="mt-2 font-medium text-white">{companyInfo?.sector || 'N/A'}</p>
                                             <p className="mt-1 text-sm text-slate-400">{companyInfo?.industry || 'N/A'}</p>
                                         </div>
-                                        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                                        <div className="rounded-xl border border-white/10 bg-slate-950/60 p-4">
                                             <p className="text-sm text-slate-400">Business summary</p>
                                             <p className="mt-2 text-sm leading-6 text-slate-300">{companyInfo?.longBusinessSummary || 'No summary available yet.'}</p>
                                         </div>
@@ -229,7 +230,7 @@ export default function DashboardPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-slate-800/80 bg-slate-900/70">
+                        <Card className="border-white/10 bg-white/[0.04]">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
                                     <TrendingDown className="h-5 w-5 text-rose-400" />
@@ -262,7 +263,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="space-y-6">
-                        <Card className="border-slate-800/80 bg-slate-900/70">
+                        <Card className="border-white/10 bg-white/[0.04]">
                             <CardHeader>
                                 <div className="flex items-center gap-2">
                                     <Sparkles className="h-5 w-5 text-cyan-300" />
@@ -271,7 +272,7 @@ export default function DashboardPage() {
                             </CardHeader>
                             <CardContent className="flex flex-wrap gap-2">
                                 {trendingStocks.map((stock) => (
-                                    <span key={stock} className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
+                                    <span key={stock} className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
                                         {stock}
                                     </span>
                                 ))}
@@ -287,7 +288,7 @@ export default function DashboardPage() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 {newsItems.map((item) => (
-                                    <div key={item.title} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                                    <div key={item.title} className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
                                         <p className="text-sm font-medium text-white">{item.title}</p>
                                         <p className="mt-1 text-xs text-slate-400">{item.time}</p>
                                     </div>
@@ -298,7 +299,7 @@ export default function DashboardPage() {
                 </section>
 
                 <section className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-                    <Card className="border-slate-800/80 bg-slate-900/70">
+                    <Card className="border-white/10 bg-white/[0.04]">
                         <CardHeader>
                             <div className="flex items-center gap-2">
                                 <Wallet2 className="h-5 w-5 text-cyan-300" />
@@ -307,7 +308,7 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {portfolioSummary.map((item) => (
-                                <div key={item.label} className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                                <div key={item.label} className="rounded-xl border border-white/10 bg-slate-950/60 p-4">
                                     <p className="text-sm text-slate-400">{item.label}</p>
                                     <p className="mt-2 text-xl font-semibold text-white">{item.value}</p>
                                 </div>
@@ -315,7 +316,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-slate-800/80 bg-slate-900/70">
+                    <Card className="border-white/10 bg-white/[0.04]">
                         <CardHeader>
                             <div className="flex items-center gap-2">
                                 <CircleDollarSign className="h-5 w-5 text-cyan-300" />
@@ -324,7 +325,7 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             {watchlist.map((item) => (
-                                <div key={item.symbol} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+                                <div key={item.symbol} className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3">
                                     <div>
                                         <p className="font-medium text-white">{item.symbol}</p>
                                         <p className="text-sm text-slate-400">{item.price}</p>
@@ -337,7 +338,7 @@ export default function DashboardPage() {
                 </section>
 
                 <section className="mt-6 grid gap-4 lg:grid-cols-3">
-                    <Card className="border-slate-800/80 bg-slate-900/70">
+                    <Card className="border-white/10 bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Loading skeletons</CardTitle>
                             <CardDescription>Placeholder states while data is streaming in</CardDescription>
@@ -348,19 +349,19 @@ export default function DashboardPage() {
                             <Skeleton className="h-12" />
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-800/80 bg-slate-900/70">
+                    <Card className="border-white/10 bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>AI insight</CardTitle>
                             <CardDescription>Signals prepared for your next move</CardDescription>
                         </CardHeader>
-                        <CardContent className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                        <CardContent className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-4">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
                                 <Bot className="h-5 w-5" />
                             </div>
                             <p className="text-sm text-slate-300">{aiInsight || 'Momentum is accelerating across quality large caps with improving breadth.'}</p>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-800/80 bg-slate-900/70">
+                    <Card className="border-white/10 bg-white/[0.04]">
                         <CardHeader>
                             <CardTitle>Quick actions</CardTitle>
                             <CardDescription>Move from insight to action</CardDescription>
@@ -371,7 +372,7 @@ export default function DashboardPage() {
                                     <BarChart3 className="h-4 w-4" /> Open profile
                                 </Link>
                             </Button>
-                            <Button asChild variant="outline" className="w-full justify-start rounded-full border-slate-700 text-slate-100 hover:bg-slate-800">
+                            <Button asChild variant="outline" className="w-full justify-start rounded-full border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-cyan-400/10">
                                 <Link href="/" className="flex items-center gap-2">
                                     <ArrowRight className="h-4 w-4" /> Back to home
                                 </Link>

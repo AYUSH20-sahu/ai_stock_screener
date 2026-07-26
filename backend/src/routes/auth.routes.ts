@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken, JwtPayload } from '../utils/jwt';
+import { prisma } from '../services/prisma.service';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Register
 router.post('/register', async (req, res) => {

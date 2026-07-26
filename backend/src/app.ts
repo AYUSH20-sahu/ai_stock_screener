@@ -31,6 +31,27 @@ export const createApp = () => {
     app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
     app.use(compression());
     app.use(express.json());
+    app.use((req, _res, next) => {
+        const cookieHeader = req.headers.cookie || '';
+        const cookies = cookieHeader
+            .split(';')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+            .reduce<Record<string, string>>((acc, entry) => {
+                const index = entry.indexOf('=');
+                if (index === -1) {
+                    return acc;
+                }
+
+                const name = decodeURIComponent(entry.slice(0, index).trim());
+                const value = decodeURIComponent(entry.slice(index + 1).trim());
+                acc[name] = value;
+                return acc;
+            }, {});
+
+        (req as express.Request & { cookies: Record<string, string> }).cookies = cookies;
+        next();
+    });
 
     app.use('/api', healthRoutes);
     app.use('/api', authRoutes);

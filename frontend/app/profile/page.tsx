@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LogoutButton } from '@/components/profile/logout-button';
 import type { AuthUser } from '@/lib/auth';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ai-stock-screener-4fc5.onrender.com';
 
 async function loadProfile(): Promise<AuthUser> {
     const cookieStore = await cookies();

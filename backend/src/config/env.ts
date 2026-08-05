@@ -16,6 +16,7 @@ export const env = {
     port: Number(process.env.PORT || 5000),
     nodeEnv: process.env.NODE_ENV || 'development',
     databaseUrl: requiredEnv('DATABASE_URL'),
+    alphaVantageApiKey: requiredEnv('ALPHA_VANTAGE_API_KEY'),
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
 };

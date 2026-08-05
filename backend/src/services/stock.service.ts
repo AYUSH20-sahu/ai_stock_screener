@@ -1,6 +1,4 @@
-import YahooFinance from 'yahoo-finance2';
-
-const yahooFinance = new YahooFinance();
+import { getQuoteData, getSymbolSearch, getOverview, getIncomeStatement, getBalanceSheet, getCashFlow, getEarnings, getTimeSeriesWeekly } from './alphaVantage.service';
 
 interface NewsItem {
     title: string;
@@ -154,32 +152,34 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.quoteSummary(symbol, {
-            modules: ['price', 'defaultKeyStatistics', 'financialData', 'summaryDetail'],
-        }) as Record<string, unknown>;
+        const quoteData = await getQuoteData(symbol);
+        const quote = quoteData['Global Quote'] || {};
 
-        const price = payload.price as Record<string, unknown> | undefined;
-        const defaultKeyStatistics = payload.defaultKeyStatistics as Record<string, unknown> | undefined;
-        const financialData = payload.financialData as Record<string, unknown> | undefined;
-        const summaryDetail = payload.summaryDetail as Record<string, unknown> | undefined;
+        const rawPrice = Number(quote['05. price'] ?? NaN);
+        const rawChangePercent = Number(quote['10. change percent']?.replace('%', '') ?? NaN);
+        const rawMarketCap = Number(quote['06. volume'] ?? NaN);
 
-        const rawRoe = this.parseRawNumber(financialData?.returnOnEquity);
-        const rawRoce = this.parseRawNumber(financialData?.returnOnCapital) ?? this.parseRawNumber(financialData?.returnOnAssets);
-        const dividendYieldRaw = this.parseRawNumber(summaryDetail?.dividendYield);
+        const overview = await getOverview(symbol);
+        const rawPe = Number(overview.PERatio ?? NaN);
+        const rawPb = Number(overview.PriceToBookRatio ?? NaN);
+        const rawRoe = Number(overview.ReturnOnEquityTTM ?? NaN);
+        const rawRoce = Number(overview.ReturnOnAssetsTTM ?? NaN);
+        const rawRevenue = Number(overview.RevenueTTM ?? NaN);
+        const rawDividendYield = Number(overview.DividendYield ?? NaN);
 
         const stock: ScreenerStock = {
             symbol,
             name,
             sector,
-            price: this.parseRawNumber(price?.regularMarketPrice) ?? 0,
-            change: this.parseRawNumber(price?.regularMarketChangePercent) ?? 0,
-            marketCap: this.parseRawNumber(price?.marketCap) ?? 0,
-            pe: this.parseRawNumber(defaultKeyStatistics?.trailingPE),
-            pb: this.parseRawNumber(defaultKeyStatistics?.priceToBook),
-            roe: rawRoe != null ? Math.round(rawRoe * 10000) / 100 : null,
-            roce: rawRoce != null ? Math.round(rawRoce * 10000) / 100 : null,
-            revenue: this.parseRawNumber(defaultKeyStatistics?.revenue) ?? 0,
-            dividend: dividendYieldRaw != null ? Math.round(dividendYieldRaw * 10000) / 100 : null,
+            price: Number.isFinite(rawPrice) ? rawPrice : 0,
+            change: Number.isFinite(rawChangePercent) ? rawChangePercent : 0,
+            marketCap: Number.isFinite(rawMarketCap) ? rawMarketCap : 0,
+            pe: Number.isFinite(rawPe) ? rawPe : null,
+            pb: Number.isFinite(rawPb) ? rawPb : null,
+            roe: Number.isFinite(rawRoe) ? Math.round(rawRoe * 100) / 100 : null,
+            roce: Number.isFinite(rawRoce) ? Math.round(rawRoce * 100) / 100 : null,
+            revenue: Number.isFinite(rawRevenue) ? rawRevenue : 0,
+            dividend: Number.isFinite(rawDividendYield) ? Math.round(rawDividendYield * 10000) / 100 : null,
         };
 
         this.setCache(cacheKey, stock, 15 * 60 * 1000);
@@ -283,14 +283,14 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.search(query, { quotesCount: 8, newsCount: 0 }) as { quotes?: Array<Record<string, unknown>> };
-        const items = ((payload.quotes || []) as Array<Record<string, unknown>>)
+        const payload = await getSymbolSearch(query);
+        const items = (payload.bestMatches || [])
             .slice(0, 8)
-            .map((item: Record<string, unknown>) => ({
-                symbol: typeof item.symbol === 'string' ? item.symbol : 'N/A',
-                name: typeof item.shortname === 'string' ? item.shortname : (typeof item.longname === 'string' ? item.longname : 'Unknown'),
-                exchange: typeof item.exchDisp === 'string' ? item.exchDisp : 'N/A',
-                type: typeof item.typeDisp === 'string' ? item.typeDisp : 'Equity',
+            .map((item: Record<string, string>) => ({
+                symbol: item['1. symbol'] || 'N/A',
+                name: item['2. name'] || 'Unknown',
+                exchange: item['4. region'] || 'N/A',
+                type: item['3. type'] || 'Equity',
             }));
 
         const result = { items };
@@ -306,23 +306,24 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.quote(normalized) as Record<string, unknown>;
+        const payload = await getQuoteData(normalized);
+        const quote = payload['Global Quote'] || {};
         const payloadResult = {
-            symbol: typeof payload.symbol === 'string' ? payload.symbol : normalized,
-            shortName: typeof payload.shortName === 'string' ? payload.shortName : (typeof payload.longName === 'string' ? payload.longName : normalized),
-            regularMarketPrice: typeof payload.regularMarketPrice === 'number' ? payload.regularMarketPrice : null,
-            regularMarketChangePercent: typeof payload.regularMarketChangePercent === 'number' ? payload.regularMarketChangePercent : 0,
-            currency: typeof payload.currency === 'string' ? payload.currency : 'USD',
-            exchangeName: typeof payload.exchangeName === 'string' ? payload.exchangeName : 'N/A',
-            fullExchangeName: typeof payload.fullExchangeName === 'string' ? payload.fullExchangeName : 'N/A',
-            marketCap: typeof payload.marketCap === 'number' ? payload.marketCap : null,
-            fiftyTwoWeekHigh: typeof payload.fiftyTwoWeekHigh === 'number' ? payload.fiftyTwoWeekHigh : null,
-            fiftyTwoWeekLow: typeof payload.fiftyTwoWeekLow === 'number' ? payload.fiftyTwoWeekLow : null,
-            trailingPE: typeof payload.trailingPE === 'number' ? payload.trailingPE : null,
-            priceToBook: typeof payload.priceToBook === 'number' ? payload.priceToBook : null,
-            dividendYield: typeof payload.dividendYield === 'number' ? payload.dividendYield : null,
-            marketState: typeof payload.marketState === 'string' ? payload.marketState : 'CLOSED',
-            quoteType: typeof payload.quoteType === 'string' ? payload.quoteType : 'EQUITY',
+            symbol: quote['01. symbol'] || normalized,
+            shortName: normalized,
+            regularMarketPrice: Number(quote['05. price'] ?? null),
+            regularMarketChangePercent: Number(quote['10. change percent']?.replace('%', '') ?? 0),
+            currency: 'INR',
+            exchangeName: 'NSE',
+            fullExchangeName: 'NSE',
+            marketCap: null,
+            fiftyTwoWeekHigh: null,
+            fiftyTwoWeekLow: null,
+            trailingPE: null,
+            priceToBook: null,
+            dividendYield: null,
+            marketState: 'CLOSED',
+            quoteType: 'EQUITY',
         };
         this.setCache(cacheKey, payloadResult);
         return payloadResult;
@@ -336,27 +337,22 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.quoteSummary(normalized, {
-            modules: ['assetProfile', 'price', 'defaultKeyStatistics'],
-        }) as Record<string, unknown>;
-        const assetProfile = payload.assetProfile as Record<string, unknown> | undefined;
-        const price = payload.price as Record<string, unknown> | undefined;
-        const defaultKeyStatistics = payload.defaultKeyStatistics as Record<string, unknown> | undefined;
+        const overview = await getOverview(normalized);
 
         const companyInfo = {
             symbol: normalized,
-            sector: typeof assetProfile?.sector === 'string' ? assetProfile.sector : 'N/A',
-            industry: typeof assetProfile?.industry === 'string' ? assetProfile.industry : 'N/A',
-            website: typeof assetProfile?.website === 'string' ? assetProfile.website : null,
-            longBusinessSummary: typeof assetProfile?.longBusinessSummary === 'string' ? assetProfile.longBusinessSummary : null,
-            regularMarketPrice: typeof price?.regularMarketPrice === 'number' ? price.regularMarketPrice : null,
-            currency: typeof price?.currency === 'string' ? price.currency : 'USD',
-            exchangeName: typeof price?.exchangeName === 'string' ? price.exchangeName : 'N/A',
-            marketCap: typeof defaultKeyStatistics?.marketCap === 'number' ? defaultKeyStatistics.marketCap : null,
-            enterpriseValue: typeof defaultKeyStatistics?.enterpriseValue === 'number' ? defaultKeyStatistics.enterpriseValue : null,
-            trailingPE: typeof defaultKeyStatistics?.trailingPE === 'number' ? defaultKeyStatistics.trailingPE : null,
-            priceToBook: typeof defaultKeyStatistics?.priceToBook === 'number' ? defaultKeyStatistics.priceToBook : null,
-            dividendYield: typeof defaultKeyStatistics?.dividendYield === 'number' ? defaultKeyStatistics.dividendYield : null,
+            sector: overview.Sector || 'N/A',
+            industry: overview.Industry || 'N/A',
+            website: overview.Website || null,
+            longBusinessSummary: overview.Description || null,
+            regularMarketPrice: null,
+            currency: overview.Currency || 'INR',
+            exchangeName: overview.Exchange || 'NSE',
+            marketCap: overview.MarketCapitalization ? Number(overview.MarketCapitalization) : null,
+            enterpriseValue: null,
+            trailingPE: overview.PERatio ? Number(overview.PERatio) : null,
+            priceToBook: overview.PriceToBookRatio ? Number(overview.PriceToBookRatio) : null,
+            dividendYield: overview.DividendYield ? Number(overview.DividendYield) : null,
         };
         this.setCache(cacheKey, companyInfo);
         return companyInfo;
@@ -370,18 +366,24 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.quoteSummary(normalized, {
-            modules: ['defaultKeyStatistics', 'financialData', 'summaryDetail'],
-        }) as Record<string, unknown>;
-        const defaultKeyStatistics = payload.defaultKeyStatistics as Record<string, unknown> | undefined;
-        const financialData = payload.financialData as Record<string, unknown> | undefined;
-        const summaryDetail = payload.summaryDetail as Record<string, unknown> | undefined;
+        const overview = await getOverview(normalized);
 
         const ratios = {
             symbol: normalized,
-            defaultKeyStatistics: defaultKeyStatistics || {},
-            financialData: financialData || {},
-            summaryDetail: summaryDetail || {},
+            defaultKeyStatistics: {
+                trailingPE: overview.PERatio ? Number(overview.PERatio) : null,
+                priceToBook: overview.PriceToBookRatio ? Number(overview.PriceToBookRatio) : null,
+                marketCap: overview.MarketCapitalization ? Number(overview.MarketCapitalization) : null,
+            },
+            financialData: {
+                returnOnEquity: overview.ReturnOnEquityTTM ? Number(overview.ReturnOnEquityTTM) : null,
+                returnOnAssets: overview.ReturnOnAssetsTTM ? Number(overview.ReturnOnAssetsTTM) : null,
+                revenueTTM: overview.RevenueTTM ? Number(overview.RevenueTTM) : null,
+                dividendYield: overview.DividendYield ? Number(overview.DividendYield) : null,
+            },
+            summaryDetail: {
+                currency: overview.Currency || 'INR',
+            },
         };
         this.setCache(cacheKey, ratios);
         return ratios;
@@ -395,38 +397,32 @@ class StockService {
             return cached;
         }
 
-        const payload = await yahooFinance.quoteSummary(normalized, {
-            modules: [
-                'incomeStatementHistory',
-                'incomeStatementHistoryQuarterly',
-                'balanceSheetHistory',
-                'balanceSheetHistoryQuarterly',
-                'cashflowStatementHistory',
-                'cashflowStatementHistoryQuarterly',
-                'earnings',
-            ],
-        }) as Record<string, unknown>;
+        const [incomeRes, balanceRes, cashflowRes, earningsRes] = await Promise.all([
+            getIncomeStatement(normalized),
+            getBalanceSheet(normalized),
+            getCashFlow(normalized),
+            getEarnings(normalized),
+        ]);
 
-        const incomeAnnual = payload.incomeStatementHistory as Record<string, unknown> | undefined;
-        const incomeQuarterly = payload.incomeStatementHistoryQuarterly as Record<string, unknown> | undefined;
-        const balanceAnnual = payload.balanceSheetHistory as Record<string, unknown> | undefined;
-        const balanceQuarterly = payload.balanceSheetHistoryQuarterly as Record<string, unknown> | undefined;
-        const cashflowAnnual = payload.cashflowStatementHistory as Record<string, unknown> | undefined;
-        const cashflowQuarterly = payload.cashflowStatementHistoryQuarterly as Record<string, unknown> | undefined;
-        const earnings = payload.earnings as Record<string, unknown> | undefined;
-        const earningsChart = earnings?.earningsChart as Record<string, unknown> | undefined;
-        const financialsChart = earnings?.financialsChart as Record<string, unknown> | undefined;
+        const incomeAnnual = incomeRes.annualReports || [];
+        const incomeQuarterly = incomeRes.quarterlyReports || [];
+        const balanceAnnual = balanceRes.annualReports || [];
+        const balanceQuarterly = balanceRes.quarterlyReports || [];
+        const cashflowAnnual = cashflowRes.annualReports || [];
+        const cashflowQuarterly = cashflowRes.quarterlyReports || [];
+        const earningsAnnual = earningsRes.annualEarnings || [];
+        const earningsQuarterly = earningsRes.quarterlyEarnings || [];
 
         const statements = {
             symbol: normalized,
-            incomeAnnual: getRecordArray(incomeAnnual, 'incomeStatementHistory'),
-            incomeQuarterly: getRecordArray(incomeQuarterly, 'incomeStatementHistory'),
-            balanceAnnual: getRecordArray(balanceAnnual, 'balanceSheetStatements'),
-            balanceQuarterly: getRecordArray(balanceQuarterly, 'balanceSheetStatements'),
-            cashflowAnnual: getRecordArray(cashflowAnnual, 'cashflowStatements'),
-            cashflowQuarterly: getRecordArray(cashflowQuarterly, 'cashflowStatements'),
-            earningsQuarterly: getRecordArray(earningsChart, 'quarterly'),
-            revenueAnnual: getRecordArray(financialsChart, 'yearly'),
+            incomeAnnual,
+            incomeQuarterly,
+            balanceAnnual,
+            balanceQuarterly,
+            cashflowAnnual,
+            cashflowQuarterly,
+            earningsAnnual,
+            earningsQuarterly,
         };
         this.setCache(cacheKey, statements);
         return statements;
@@ -440,22 +436,20 @@ class StockService {
             return cached;
         }
 
-        const period1 = new Date();
-        period1.setMonth(period1.getMonth() - 6);
-        const history = await yahooFinance.chart(normalized, {
-            period1,
-            interval: '1wk',
-        });
-        const prices = history.quotes
-            .filter((item) => typeof item.close === 'number')
-            .map((item) => ({
-                date: item.date,
-                open: typeof item.open === 'number' ? item.open : item.close,
-                high: typeof item.high === 'number' ? item.high : item.close,
-                low: typeof item.low === 'number' ? item.low : item.close,
-                close: item.close,
-                volume: typeof item.volume === 'number' ? item.volume : null,
-            }));
+        const history = await getTimeSeriesWeekly(normalized);
+        const series = history['Weekly Time Series'] || {};
+
+        const prices = Object.entries(series)
+            .map(([date, values]) => ({
+                date,
+                open: Number(values['1. open'] ?? NaN),
+                high: Number(values['2. high'] ?? NaN),
+                low: Number(values['3. low'] ?? NaN),
+                close: Number(values['4. close'] ?? NaN),
+                volume: Number(values['5. volume'] ?? NaN),
+            }))
+            .filter((item) => Number.isFinite(item.close))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         const result = { symbol: normalized, prices };
         this.setCache(cacheKey, result);
@@ -470,23 +464,24 @@ class StockService {
         }
 
         const marketSymbols = [
-            { label: 'NIFTY 50', symbol: '^NSEI' },
-            { label: 'SENSEX', symbol: '^BSESN' },
-            { label: 'INDIA VIX', symbol: '^INDIAVIX' },
+            { label: 'NIFTY 50', symbol: 'NSEI' },
+            { label: 'SENSEX', symbol: 'BSESN' },
+            { label: 'INDIA VIX', symbol: 'INDIAVIX' },
         ];
 
         const overview = await Promise.all(
             marketSymbols.map(async ({ label, symbol }) => {
                 try {
-                    const payload = await yahooFinance.quote(symbol) as Record<string, unknown>;
-                    const price = typeof payload.regularMarketPrice === 'number' ? payload.regularMarketPrice : null;
-                    const changePercent = typeof payload.regularMarketChangePercent === 'number' ? payload.regularMarketChangePercent : null;
+                    const payload = await getQuoteData(symbol);
+                    const quote = payload['Global Quote'] || {};
+                    const price = Number(quote['05. price'] ?? NaN);
+                    const changePercent = Number(quote['10. change percent']?.replace('%', '') ?? NaN);
 
                     return {
                         label,
-                        value: price != null ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
-                        change: changePercent != null ? `${changePercent.toFixed(2)}%` : '0.00%',
-                        up: changePercent == null || changePercent >= 0,
+                        value: Number.isFinite(price) ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
+                        change: Number.isFinite(changePercent) ? `${changePercent.toFixed(2)}%` : '0.00%',
+                        up: !Number.isFinite(changePercent) || changePercent >= 0,
                     };
                 } catch {
                     return {
@@ -525,14 +520,15 @@ class StockService {
 
         const results = await Promise.allSettled(
             symbols.map(async (symbol) => {
-                const payload = await yahooFinance.quote(symbol) as Record<string, unknown>;
-                const price = typeof payload.regularMarketPrice === 'number' ? payload.regularMarketPrice : null;
-                const changePercent = typeof payload.regularMarketChangePercent === 'number' ? payload.regularMarketChangePercent : null;
+                const payload = await getQuoteData(symbol);
+                const quote = payload['Global Quote'] || {};
+                const price = Number(quote['05. price'] ?? NaN);
+                const changePercent = Number(quote['10. change percent']?.replace('%', '') ?? NaN);
                 return {
                     symbol,
-                    price: price != null ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
-                    change: changePercent != null ? `${changePercent.toFixed(2)}%` : '0.00%',
-                    changePercent: changePercent ?? 0,
+                    price: Number.isFinite(price) ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
+                    change: Number.isFinite(changePercent) ? `${changePercent.toFixed(2)}%` : '0.00%',
+                    changePercent: Number.isFinite(changePercent) ? changePercent : 0,
                 };
             })
         );
@@ -562,20 +558,10 @@ class StockService {
             return cached;
         }
 
-        try {
-            const result = await yahooFinance.search('Indian stock market', { quotesCount: 0, newsCount: 8 }) as { news?: Array<Record<string, unknown>> };
-            const news = (result.news || []).slice(0, 6).map((item) => ({
-                title: typeof item.title === 'string' ? item.title : 'Market update',
-                summary: typeof item.summary === 'string' ? item.summary : 'No summary available.',
-                url: typeof item.link === 'string' ? item.link : '#',
-                publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : new Date().toISOString(),
-                source: typeof item.publisher === 'string' ? item.publisher : 'Market News',
-            }));
-            this.setCache(cacheKey, news, 30 * 60 * 1000);
-            return news;
-        } catch {
-            return [];
-        }
+        // Alpha Vantage does not provide market news. Return an empty list for now.
+        const news: NewsItem[] = [];
+        this.setCache(cacheKey, news, 30 * 60 * 1000);
+        return news;
     }
 
     async getStockNews(symbol: string) {
@@ -586,21 +572,10 @@ class StockService {
             return cached;
         }
 
-        try {
-            const searchResult = await yahooFinance.search(normalized, { quotesCount: 0, newsCount: 10 }) as { news?: Array<Record<string, unknown>> };
-            const news = (searchResult.news || []).slice(0, 10).map((item: Record<string, unknown>) => ({
-                title: typeof item.title === 'string' ? item.title : 'No title',
-                summary: typeof item.summary === 'string' ? item.summary : 'No summary available.',
-                url: typeof item.link === 'string' ? item.link : '#',
-                publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : new Date().toISOString(),
-                source: typeof item.publisher === 'string' ? item.publisher : 'Unknown',
-            }));
-
-            this.setCache(cacheKey, news, 10 * 60 * 1000); // Cache for 10 minutes
-            return news;
-        } catch {
-            return [];
-        }
+        // Alpha Vantage does not provide news feeds for individual symbols.
+        const news: NewsItem[] = [];
+        this.setCache(cacheKey, news, 10 * 60 * 1000); // Cache for 10 minutes
+        return news;
     }
 
     async getRelatedStocks(symbol: string) {
@@ -611,41 +586,10 @@ class StockService {
             return cached;
         }
 
-        try {
-            // Search for similar companies based on sector/industry
-            const quote = await yahooFinance.quoteSummary(normalized, { modules: ['assetProfile'] }) as Record<string, unknown>;
-            const assetProfile = quote.assetProfile as Record<string, unknown> | undefined;
-            const sector = typeof assetProfile?.sector === 'string' ? assetProfile.sector : '';
-            const industry = typeof assetProfile?.industry === 'string' ? assetProfile.industry : '';
-
-            let relatedSymbols: string[] = [];
-            if (sector) {
-                const searchResult = await yahooFinance.search(sector, { quotesCount: 6, newsCount: 0 }) as { quotes?: Array<{ symbol?: string }> };
-                relatedSymbols = (searchResult.quotes || [])
-                    .filter((q) => q.symbol && q.symbol !== normalized)
-                    .slice(0, 5)
-                    .map((q) => q.symbol!);
-            }
-
-            const relatedStocks = [];
-            for (const sym of relatedSymbols) {
-                try {
-                    const q = await yahooFinance.quote(sym) as Record<string, unknown>;
-                    relatedStocks.push({
-                        symbol: typeof q.symbol === 'string' ? q.symbol : sym,
-                        name: typeof q.shortName === 'string' ? q.shortName : (typeof q.longName === 'string' ? q.longName : sym),
-                        exchange: typeof q.exchangeName === 'string' ? q.exchangeName : 'N/A',
-                    });
-                } catch {
-                    // Skip if quote fetch fails
-                }
-            }
-
-            this.setCache(cacheKey, relatedStocks, 30 * 60 * 1000); // Cache for 30 minutes
-            return relatedStocks;
-        } catch {
-            return [];
-        }
+        // Alpha Vantage does not provide industry-related search by sector in a reusable way.
+        const relatedStocks: Array<{ symbol: string; name: string; exchange: string }> = [];
+        this.setCache(cacheKey, relatedStocks, 30 * 60 * 1000); // Cache for 30 minutes
+        return relatedStocks;
     }
 }
 

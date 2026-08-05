@@ -25,7 +25,7 @@ async function readJson<T>(response: Response): Promise<T | null> {
     }
 }
 
-async function authRequest<T>(path: string, init: RequestInit = {}) {
+async function authRequest<T>(path: string, init: RequestInit = {}, didRetry = false) {
     const response = await fetch(`/api/auth${path}`, {
         credentials: 'include',
         ...init,
@@ -36,6 +36,20 @@ async function authRequest<T>(path: string, init: RequestInit = {}) {
     });
 
     const body = await readJson<AuthResponse<T>>(response);
+
+    if ((!response.ok || body?.success === false) && !didRetry && response.status === 401 && path !== '/refresh' && path !== '/login' && path !== '/register') {
+        const refreshResponse = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (refreshResponse.ok) {
+            return authRequest<T>(path, init, true);
+        }
+    }
 
     if (!response.ok || body?.success === false) {
         throw new Error(body?.message || 'Request failed');

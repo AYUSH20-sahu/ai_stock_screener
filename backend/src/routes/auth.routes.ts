@@ -6,6 +6,23 @@ import { prisma } from '../services/prisma.service';
 
 const router = Router();
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+const authCookieOptions = (maxAge: number) => ({
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' as const : 'strict' as const,
+    path: '/',
+    maxAge,
+});
+
+const clearAuthCookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' as const : 'strict' as const,
+    path: '/',
+};
+
 // Register
 router.post('/register', async (req, res) => {
     try {
@@ -43,19 +60,8 @@ router.post('/register', async (req, res) => {
         const accessToken = generateAccessToken(payload);
         const refreshToken = generateRefreshToken(payload);
 
-        res.cookie('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 15 * 60 * 1000, // 15 minutes
-        });
-
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
+        res.cookie('accessToken', accessToken, authCookieOptions(15 * 60 * 1000));
+        res.cookie('refreshToken', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
         res.status(201).json({
             success: true,
@@ -106,19 +112,8 @@ router.post('/login', async (req, res) => {
         const accessToken = generateAccessToken(payload);
         const refreshToken = generateRefreshToken(payload);
 
-        res.cookie('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 15 * 60 * 1000,
-        });
-
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
+        res.cookie('accessToken', accessToken, authCookieOptions(15 * 60 * 1000));
+        res.cookie('refreshToken', refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
         res.json({
             success: true,
@@ -164,12 +159,7 @@ router.post('/refresh', async (req, res) => {
 
             const newAccessToken = generateAccessToken(payload);
 
-            res.cookie('accessToken', newAccessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 15 * 60 * 1000,
-            });
+            res.cookie('accessToken', newAccessToken, authCookieOptions(15 * 60 * 1000));
 
             res.json({
                 success: true,
@@ -186,8 +176,8 @@ router.post('/refresh', async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    res.clearCookie('accessToken', clearAuthCookieOptions);
+    res.clearCookie('refreshToken', clearAuthCookieOptions);
     res.json({ success: true, message: 'Logged out successfully' });
 });
 

@@ -205,7 +205,7 @@ export default function ScreenerPage() {
     ]);
 
     useEffect(() => {
-        if (!sentinelRef.current || isLoading || !hasMore) {
+        if (!sentinelRef.current || isLoading || !hasMore || stocks.length === 0) {
             return undefined;
         }
 
@@ -217,7 +217,7 @@ export default function ScreenerPage() {
 
         observer.observe(sentinelRef.current);
         return () => observer.disconnect();
-    }, [isLoading, hasMore]);
+    }, [isLoading, hasMore, stocks.length]);
 
     const startIndex = stocks.length === 0 ? 0 : 1;
     const endIndex = Math.min(stocks.length, total);

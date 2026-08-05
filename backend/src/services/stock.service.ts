@@ -182,7 +182,7 @@ class StockService {
             dividend: dividendYieldRaw != null ? Math.round(dividendYieldRaw * 10000) / 100 : null,
         };
 
-        this.setCache(cacheKey, stock, 30 * 60 * 1000);
+        this.setCache(cacheKey, stock, 15 * 60 * 1000);
         return stock;
     }
 

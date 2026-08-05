@@ -128,6 +128,11 @@ export default function LoginPage() {
                                             />
                                         </div>
                                     </div>
+                                    <div className="flex justify-end text-sm">
+                                        <Link href="/forgot-password" className="font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline">
+                                            Forgot password?
+                                        </Link>
+                                    </div>
                                     <Button
                                         type="submit"
                                         className="h-12 w-full rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-950 font-semibold shadow-lg shadow-cyan-500/20 transition hover:brightness-110"

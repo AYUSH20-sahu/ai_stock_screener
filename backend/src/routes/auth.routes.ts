@@ -32,8 +32,9 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
 
+        const normalizedEmail = String(email).trim().toLowerCase();
         const existingUser = await prisma.user.findUnique({
-            where: { email }
+            where: { email: normalizedEmail }
         });
 
         if (existingUser) {
@@ -45,7 +46,7 @@ router.post('/register', async (req, res) => {
 
         const user = await prisma.user.create({
             data: {
-                email,
+                email: normalizedEmail,
                 passwordHash,
                 fullName,
                 verificationToken,
@@ -90,8 +91,9 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
 
+        const normalizedEmail = String(email).trim().toLowerCase();
         const user = await prisma.user.findUnique({
-            where: { email }
+            where: { email: normalizedEmail }
         });
 
         if (!user || !user.passwordHash) {
@@ -129,6 +131,86 @@ router.post('/login', async (req, res) => {
         });
     } catch (error) {
         console.error('Login error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Forgot password
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+        if (user) {
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    resetToken,
+                    resetTokenExpiry,
+                },
+            });
+
+            // TODO: Send this token by email in production.
+            // For now, return it in the response to support the demo workflow.
+            return res.json({
+                success: true,
+                data: { resetToken },
+                message: 'Password reset instructions have been generated.',
+            });
+        }
+
+        return res.json({ success: true, message: 'If an account exists for that email, password reset instructions have been sent.' });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Reset password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Token and password are required' });
+        }
+
+        const user = await prisma.user.findFirst({
+            where: {
+                resetToken: String(token),
+                resetTokenExpiry: {
+                    gt: new Date(),
+                },
+            },
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+        }
+
+        const passwordHash = await bcrypt.hash(String(password), 10);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                passwordHash,
+                resetToken: null,
+                resetTokenExpiry: null,
+            },
+        });
+
+        return res.json({ success: true, message: 'Password has been reset successfully.' });
+    } catch (error) {
+        console.error('Reset password error:', error);
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });

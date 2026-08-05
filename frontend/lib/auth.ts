@@ -72,6 +72,20 @@ export function register(email: string, password: string, fullName: string) {
     });
 }
 
+export function forgotPassword(email: string) {
+    return authRequest<{ resetToken?: string }>('/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+    });
+}
+
+export function resetPassword(token: string, password: string) {
+    return authRequest<null>('/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+    });
+}
+
 export function getCurrentUser() {
     return authRequest<{ user: AuthUser }>('/me', {
         method: 'GET',

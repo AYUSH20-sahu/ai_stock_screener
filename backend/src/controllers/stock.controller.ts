@@ -25,6 +25,21 @@ export const stockController = {
         res.status(200).json({ success: true, data: payload });
     }),
 
+    getMarketOverview: asyncWrapper(async (_req: Request, res: Response, _next: NextFunction) => {
+        const payload = await stockService.getMarketOverview();
+        res.status(200).json({ success: true, data: payload });
+    }),
+
+    getMarketMovers: asyncWrapper(async (_req: Request, res: Response, _next: NextFunction) => {
+        const payload = await stockService.getMarketMovers();
+        res.status(200).json({ success: true, data: payload });
+    }),
+
+    getMarketNewsFeed: asyncWrapper(async (_req: Request, res: Response, _next: NextFunction) => {
+        const payload = await stockService.getMarketNewsFeed();
+        res.status(200).json({ success: true, data: payload });
+    }),
+
     getCompanyInfo: asyncWrapper(async (req: Request, res: Response, _next: NextFunction) => {
         const symbol = typeof req.params.symbol === 'string' ? req.params.symbol : '';
         if (!symbol.trim()) {

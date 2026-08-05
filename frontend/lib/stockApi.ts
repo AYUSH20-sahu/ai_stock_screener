@@ -25,6 +25,18 @@ export async function getStockQuote(symbol: string) {
     return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/quote`);
 }
 
+export async function getMarketOverview() {
+    return requestJson<{ success: boolean; data: Array<{ label: string; value: string; change: string; up: boolean }> }>(`/api/stocks/market-overview`);
+}
+
+export async function getMarketMovers() {
+    return requestJson<{ success: boolean; data: { topGainers: Array<{ symbol: string; price: string; change: string }>; topLosers: Array<{ symbol: string; price: string; change: string }>; trending: Array<{ symbol: string; price: string; change: string }> } }>(`/api/stocks/market-movers`);
+}
+
+export async function getMarketNews() {
+    return requestJson<{ success: boolean; data: Array<{ title: string; summary: string; url: string; publishedAt: string; source: string }> }>(`/api/stocks/market-news`);
+}
+
 export async function getStockCompanyInfo(symbol: string) {
     return requestJson<{ success: boolean; data: unknown }>(`/api/stocks/${encodeURIComponent(symbol)}/company`);
 }

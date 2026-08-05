@@ -4,6 +4,9 @@ import { stockController } from '../controllers/stock.controller';
 const router = Router();
 
 router.get('/stocks/search', stockController.searchStocks);
+router.get('/stocks/market-overview', stockController.getMarketOverview);
+router.get('/stocks/market-movers', stockController.getMarketMovers);
+router.get('/stocks/market-news', stockController.getMarketNewsFeed);
 router.get('/stocks/:symbol/quote', stockController.getQuote);
 router.get('/stocks/:symbol/company', stockController.getCompanyInfo);
 router.get('/stocks/:symbol/ratios', stockController.getFinancialRatios);

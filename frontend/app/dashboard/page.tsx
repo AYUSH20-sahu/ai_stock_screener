@@ -7,35 +7,35 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, Bot, CircleDollarSign, Newspaper, PieChart, Search, SlidersHorizontal, Sparkles, TrendingDown, TrendingUp, Trophy, Wallet2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { searchStocks, getStockCompanyInfo, getStockFinancialRatios, getStockQuote } from '@/lib/stockApi';
+import { searchStocks, getStockCompanyInfo, getStockFinancialRatios, getStockQuote, getMarketOverview, getMarketMovers, getMarketNews } from '@/lib/stockApi';
 import { getGeminiInsight } from '@/lib/geminiApi';
 
-const marketOverview = [
+const defaultMarketOverview = [
     { label: 'NIFTY 50', value: '24,650', change: '+0.78%', up: true },
     { label: 'SENSEX', value: '80,950', change: '+0.54%', up: true },
     { label: 'VIX', value: '14.2', change: '-2.10%', up: false },
 ];
 
-const topGainers = [
+const defaultTopGainers = [
     { symbol: 'INFY', price: '1,864.50', change: '+4.12%' },
     { symbol: 'TCS', price: '4,008.20', change: '+3.88%' },
     { symbol: 'HCLTECH', price: '1,620.30', change: '+3.41%' },
 ];
 
-const topLosers = [
+const defaultTopLosers = [
     { symbol: 'EICHER', price: '6,860.10', change: '-2.35%' },
     { symbol: 'ASIANPAINT', price: '2,490.60', change: '-1.97%' },
     { symbol: 'BPCL', price: '328.15', change: '-1.81%' },
 ];
 
-const trendingStocks = [
+const defaultTrendingStocks = [
     'RELIANCE', 'LIC', 'TATAMOTORS', 'ZOMATO', 'ADANIENT', 'SBIN',
 ];
 
-const newsItems = [
-    { title: 'RBI signals stable policy tone', time: '12m ago' },
-    { title: 'Auto sector sees fresh momentum', time: '38m ago' },
-    { title: 'Institutional flows turn positive', time: '1h ago' },
+const defaultNewsItems = [
+    { title: 'RBI signals stable policy tone', time: '12m ago', url: '#', source: 'Market News' },
+    { title: 'Auto sector sees fresh momentum', time: '38m ago', url: '#', source: 'Market News' },
+    { title: 'Institutional flows turn positive', time: '1h ago', url: '#', source: 'Market News' },
 ];
 
 const portfolioSummary = [
@@ -62,6 +62,11 @@ export default function DashboardPage() {
     const [companyInfo, setCompanyInfo] = useState<any>(null);
     const [financialRatios, setFinancialRatios] = useState<any>(null);
     const [aiInsight, setAiInsight] = useState<string>('');
+    const [marketOverview, setMarketOverview] = useState(defaultMarketOverview);
+    const [topGainers, setTopGainers] = useState(defaultTopGainers);
+    const [topLosers, setTopLosers] = useState(defaultTopLosers);
+    const [trendingStocks, setTrendingStocks] = useState(defaultTrendingStocks);
+    const [newsItems, setNewsItems] = useState(defaultNewsItems);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -71,21 +76,38 @@ export default function DashboardPage() {
             setIsLoading(true);
             setError(null);
             try {
-                const [searchResponse, quoteResponse, companyResponse, ratiosResponse, geminiResponse] = await Promise.all([
+                const [searchResponse, quoteResponse, companyResponse, ratiosResponse, geminiResponse, overviewResponse, moversResponse, newsResponse] = await Promise.all([
                     searchStocks(query || 'AAPL'),
                     getStockQuote(selectedSymbol || 'AAPL'),
                     getStockCompanyInfo(selectedSymbol || 'AAPL'),
                     getStockFinancialRatios(selectedSymbol || 'AAPL'),
                     getGeminiInsight(`Give a concise market insight for ${selectedSymbol || 'AAPL'} in 1-2 sentences.`),
+                    getMarketOverview(),
+                    getMarketMovers(),
+                    getMarketNews(),
                 ]);
+
                 if (!isMounted) {
                     return;
                 }
+
                 setSearchResults(searchResponse.data.items || []);
                 setQuote(quoteResponse.data);
                 setCompanyInfo(companyResponse.data);
                 setFinancialRatios(ratiosResponse.data);
                 setAiInsight(geminiResponse?.insight || geminiResponse?.message || 'No insight available.');
+                setMarketOverview(overviewResponse.data || defaultMarketOverview);
+                setTopGainers(moversResponse.data.topGainers || defaultTopGainers);
+                setTopLosers(moversResponse.data.topLosers || defaultTopLosers);
+                setTrendingStocks(moversResponse.data.trending.map((item) => item.symbol) || defaultTrendingStocks);
+                setNewsItems(
+                    (newsResponse.data || []).map((newsItem) => ({
+                        title: newsItem.title,
+                        time: newsItem.publishedAt ? new Date(newsItem.publishedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Now',
+                        url: newsItem.url,
+                        source: newsItem.source,
+                    }))
+                );
             } catch (err) {
                 if (!isMounted) {
                     return;
@@ -99,8 +121,11 @@ export default function DashboardPage() {
         };
 
         loadData();
+
+        const refreshInterval = setInterval(loadData, 30 * 60 * 1000);
         return () => {
             isMounted = false;
+            clearInterval(refreshInterval);
         };
     }, [query, selectedSymbol]);
 
@@ -165,20 +190,20 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {searchResults.slice(0, 4).map((result) => (
-                                    <button
-                                        key={result.symbol}
-                                        onClick={() => setSelectedSymbol(result.symbol)}
-                                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500/50 hover:text-white hover:bg-cyan-400/10"
-                                    >
-                                        {result.symbol}
-                                    </button>
+                                <button
+                                    key={result.symbol}
+                                    onClick={() => setSelectedSymbol(result.symbol)}
+                                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 transition hover:border-cyan-500/50 hover:text-white hover:bg-cyan-400/10"
+                                >
+                                    {result.symbol}
+                                </button>
                             ))}
                         </div>
                     </div>
                 </section>
 
-                <section className="grid gap-4 md:grid-cols-3">
-                    {marketSummary.map((item) => (
+                <section className="mt-6 grid gap-4 md:grid-cols-3">
+                    {marketOverview.map((item) => (
                         <Card key={item.label} className="border-white/10 bg-white/[0.04]">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base text-slate-300">{item.label}</CardTitle>
@@ -194,6 +219,48 @@ export default function DashboardPage() {
                             </CardContent>
                         </Card>
                     ))}
+                </section>
+
+                <section className="mt-6 grid gap-6 lg:grid-cols-2">
+                    <Card className="border-white/10 bg-white/[0.04]">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5 text-emerald-400" />
+                                <CardTitle>Top gainers</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {topGainers.map((item) => (
+                                <div key={item.symbol} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+                                    <div>
+                                        <p className="font-medium text-white">{item.symbol}</p>
+                                        <p className="text-sm text-slate-400">{item.price}</p>
+                                    </div>
+                                    <span className="text-sm font-semibold text-emerald-400">{item.change}</span>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-white/10 bg-white/[0.04]">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <TrendingDown className="h-5 w-5 text-rose-400" />
+                                <CardTitle>Top losers</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {topLosers.map((item) => (
+                                <div key={item.symbol} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+                                    <div>
+                                        <p className="font-medium text-white">{item.symbol}</p>
+                                        <p className="text-sm text-slate-400">{item.price}</p>
+                                    </div>
+                                    <span className="text-sm font-semibold text-rose-400">{item.change}</span>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
                 </section>
 
                 <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

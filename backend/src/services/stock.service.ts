@@ -240,6 +240,122 @@ class StockService {
         return result;
     }
 
+    async getMarketOverview() {
+        const cacheKey = 'market:overview';
+        const cached = this.getCached<Array<{ label: string; value: string; change: string; up: boolean }>>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const marketSymbols = [
+            { label: 'NIFTY 50', symbol: '^NSEI' },
+            { label: 'SENSEX', symbol: '^BSESN' },
+            { label: 'INDIA VIX', symbol: '^INDIAVIX' },
+        ];
+
+        const overview = await Promise.all(
+            marketSymbols.map(async ({ label, symbol }) => {
+                try {
+                    const payload = await yahooFinance.quote(symbol) as Record<string, unknown>;
+                    const price = typeof payload.regularMarketPrice === 'number' ? payload.regularMarketPrice : null;
+                    const changePercent = typeof payload.regularMarketChangePercent === 'number' ? payload.regularMarketChangePercent : null;
+
+                    return {
+                        label,
+                        value: price != null ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
+                        change: changePercent != null ? `${changePercent.toFixed(2)}%` : '0.00%',
+                        up: changePercent == null || changePercent >= 0,
+                    };
+                } catch {
+                    return {
+                        label,
+                        value: 'N/A',
+                        change: '0.00%',
+                        up: true,
+                    };
+                }
+            })
+        );
+
+        this.setCache(cacheKey, overview, 30 * 60 * 1000);
+        return overview;
+    }
+
+    async getMarketMovers() {
+        const cacheKey = 'market:movers';
+        const cached = this.getCached<{ topGainers: Array<{ symbol: string; price: string; change: string }>; topLosers: Array<{ symbol: string; price: string; change: string }>; trending: Array<{ symbol: string; price: string; change: string }> }>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const symbols = [
+            'RELIANCE.NS',
+            'TCS.NS',
+            'INFY.NS',
+            'HDFCBANK.NS',
+            'ICICIBANK.NS',
+            'ADANIENT.NS',
+            'SBIN.NS',
+            'BHARTIARTL.NS',
+            'LT.NS',
+            'JSWSTEEL.NS',
+        ];
+
+        const results = await Promise.allSettled(
+            symbols.map(async (symbol) => {
+                const payload = await yahooFinance.quote(symbol) as Record<string, unknown>;
+                const price = typeof payload.regularMarketPrice === 'number' ? payload.regularMarketPrice : null;
+                const changePercent = typeof payload.regularMarketChangePercent === 'number' ? payload.regularMarketChangePercent : null;
+                return {
+                    symbol,
+                    price: price != null ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(price) : 'N/A',
+                    change: changePercent != null ? `${changePercent.toFixed(2)}%` : '0.00%',
+                    changePercent: changePercent ?? 0,
+                };
+            })
+        );
+
+        const quotes = results
+            .filter((result): result is PromiseFulfilledResult<{ symbol: string; price: string; change: string; changePercent: number }> => result.status === 'fulfilled')
+            .map((result) => result.value)
+            .filter((item) => item.symbol);
+
+        const sortedByChange = [...quotes].sort((a, b) => b.changePercent - a.changePercent);
+        const topGainers = sortedByChange.slice(0, 3).map(({ symbol, price, change }) => ({ symbol, price, change }));
+        const topLosers = [...sortedByChange]
+            .reverse()
+            .slice(0, 3)
+            .map(({ symbol, price, change }) => ({ symbol, price, change }));
+        const trending = sortedByChange.slice(0, 6).map(({ symbol, price, change }) => ({ symbol, price, change }));
+
+        const payload = { topGainers, topLosers, trending };
+        this.setCache(cacheKey, payload, 30 * 60 * 1000);
+        return payload;
+    }
+
+    async getMarketNewsFeed() {
+        const cacheKey = 'market:news';
+        const cached = this.getCached<NewsItem[]>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            const result = await yahooFinance.search('Indian stock market', { quotesCount: 0, newsCount: 8 }) as { news?: Array<Record<string, unknown>> };
+            const news = (result.news || []).slice(0, 6).map((item) => ({
+                title: typeof item.title === 'string' ? item.title : 'Market update',
+                summary: typeof item.summary === 'string' ? item.summary : 'No summary available.',
+                url: typeof item.link === 'string' ? item.link : '#',
+                publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : new Date().toISOString(),
+                source: typeof item.publisher === 'string' ? item.publisher : 'Market News',
+            }));
+            this.setCache(cacheKey, news, 30 * 60 * 1000);
+            return news;
+        } catch {
+            return [];
+        }
+    }
+
     async getStockNews(symbol: string) {
         const normalized = symbol.trim().toUpperCase();
         const cacheKey = this.getCacheKey('news', normalized);

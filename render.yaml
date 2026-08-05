@@ -15,7 +15,7 @@ services:
         value: https://ai-stock-screener.vercel.app
       - key: DATABASE_URL
         sync: false
-      - key: AQ.Ab8RN6KAr_8pAx_8sv0A20odgVSCLQMBU6IW7MUfuMYG0Q24WQ
-        sync: false
-      - key: KM19MLYTU6ZRVO8S
-        sync: false
+      - key: GEMINI_API_KEY
+        value: AQ.Ab8RN6KAr_8pAx_8sv0A20odgVSCLQMBU6IW7MUfuMYG0Q24WQ
+      - key: ALPHA_VANTAGE_API_KEY
+        value: KM19MLYTU6ZRVO8S

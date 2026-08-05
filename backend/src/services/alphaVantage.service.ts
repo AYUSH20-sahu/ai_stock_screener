@@ -2,8 +2,17 @@ import { env } from '../config/env';
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 
+function getAlphaVantageApiKey(): string {
+    if (!env.alphaVantageApiKey) {
+        throw new Error(
+            'Missing required environment variable: ALPHA_VANTAGE_API_KEY. Set this in Render dashboard or backend .env.local before using stock data routes.'
+        );
+    }
+    return env.alphaVantageApiKey;
+}
+
 function buildUrl(params: Record<string, string>): string {
-    const searchParams = new URLSearchParams({ apikey: env.alphaVantageApiKey, ...params });
+    const searchParams = new URLSearchParams({ apikey: getAlphaVantageApiKey(), ...params });
     return `${BASE_URL}?${searchParams.toString()}`;
 }
 

@@ -16,8 +16,8 @@ import { logger } from './utils/logger';
 import { env } from './config/env';
 
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production'
-        ? [process.env.FRONTEND_URL || 'https://ai-stock-screener.vercel.app']
+    origin: env.nodeEnv === 'production'
+        ? [env.frontendUrl]
         : ['http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true,
     optionsSuccessStatus: 200,

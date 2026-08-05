@@ -3,8 +3,8 @@ services:
     name: ai-stock-screener-backend
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -16,9 +16,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: GEMINI_API_KEY
-        value: AQ.Ab8RN6KAr_8pAx_8sv0A20odgVSCLQMBU6IW7MUfuMYG0Q24WQ
+        sync: false
       - key: ALPHA_VANTAGE_API_KEY
-        value: KM19MLYTU6ZRVO8S
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET

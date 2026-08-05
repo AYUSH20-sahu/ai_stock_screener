@@ -17,5 +17,5 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: YAHOO_FINANCE_API_KEY
+      - key: ALPHA_VANTAGE_API_KEY
         sync: false

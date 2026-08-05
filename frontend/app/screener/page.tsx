@@ -3,10 +3,11 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getScreener } from '@/lib/stockApi';
 
 type ScreenerStock = {
     symbol: string;
@@ -23,25 +24,10 @@ type ScreenerStock = {
     change: number;
 };
 
-const stockUniverse: ScreenerStock[] = [
-    { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology', marketCap: 3090, pe: 33.4, pb: 47.2, roe: 142.6, roce: 31.4, revenue: 391.0, dividend: 0.52, price: 208.4, change: 1.28 },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology', marketCap: 3180, pe: 38.2, pb: 13.2, roe: 34.5, roce: 29.4, revenue: 245.1, dividend: 0.73, price: 428.2, change: 0.91 },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.', sector: 'Technology', marketCap: 3000, pe: 57.1, pb: 46.8, roe: 81.9, roce: 34.2, revenue: 130.5, dividend: 0.04, price: 126.7, change: 2.02 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', sector: 'Consumer Discretionary', marketCap: 2200, pe: 53.7, pb: 6.8, roe: 12.6, roce: 13.8, revenue: 620.0, dividend: 0.0, price: 198.6, change: 0.75 },
-    { symbol: 'META', name: 'Meta Platforms Inc.', sector: 'Communication Services', marketCap: 1580, pe: 27.3, pb: 8.2, roe: 30.9, roce: 26.3, revenue: 164.5, dividend: 0.5, price: 548.9, change: -0.28 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', sector: 'Consumer Discretionary', marketCap: 660, pe: 63.6, pb: 10.1, roe: 16.1, roce: 15.2, revenue: 97.7, dividend: 0.0, price: 248.4, change: -1.84 },
-    { symbol: 'JPM', name: 'JPMorgan Chase', sector: 'Financials', marketCap: 760, pe: 12.7, pb: 1.4, roe: 11.2, roce: 10.7, revenue: 160.0, dividend: 2.1, price: 222.1, change: 0.44 },
-    { symbol: 'XOM', name: 'Exxon Mobil Corp.', sector: 'Energy', marketCap: 470, pe: 13.8, pb: 1.9, roe: 13.8, roce: 16.1, revenue: 344.6, dividend: 3.4, price: 116.3, change: 0.44 },
-    { symbol: 'JNJ', name: 'Johnson & Johnson', sector: 'Health Care', marketCap: 400, pe: 16.4, pb: 4.4, roe: 26.9, roce: 20.8, revenue: 88.8, dividend: 3.3, price: 154.7, change: 0.16 },
-    { symbol: 'PG', name: 'Procter & Gamble', sector: 'Consumer Staples', marketCap: 380, pe: 26.4, pb: 4.9, roe: 18.7, roce: 17.4, revenue: 84.0, dividend: 2.4, price: 166.1, change: 0.31 },
-    { symbol: 'V', name: 'Visa Inc.', sector: 'Financials', marketCap: 620, pe: 31.4, pb: 7.6, roe: 24.4, roce: 20.1, revenue: 35.8, dividend: 0.79, price: 279.8, change: 0.41 },
-    { symbol: 'MA', name: 'Mastercard Inc.', sector: 'Financials', marketCap: 530, pe: 37.2, pb: 8.4, roe: 22.7, roce: 19.8, revenue: 28.4, dividend: 0.5, price: 495.8, change: 0.74 },
-];
+type SortKey = 'marketCap' | 'pe' | 'pb' | 'roe' | 'roce' | 'revenue' | 'dividend' | 'symbol' | 'price';
 
 const pageSize = 8;
-const sectors = ['All', ...Array.from(new Set(stockUniverse.map((stock) => stock.sector))).sort()];
-
-type SortKey = 'marketCap' | 'pe' | 'pb' | 'roe' | 'roce' | 'revenue' | 'dividend' | 'symbol' | 'price';
+const sectors = ['All', 'Energy', 'Information Technology', 'Financials', 'Industrials', 'Communication Services', 'Consumer Staples', 'Consumer Discretionary', 'Materials', 'Health Care', 'Utilities'];
 
 function formatMetric(value: number | null | undefined, digits = 2) {
     if (value == null || Number.isNaN(value)) {
@@ -77,46 +63,164 @@ export default function ScreenerPage() {
     const [sortKey, setSortKey] = useState<SortKey>('marketCap');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [page, setPage] = useState(1);
+    const [stocks, setStocks] = useState<ScreenerStock[]>([]);
+    const [total, setTotal] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+    const filterKey = useMemo(
+        () => [
+            query,
+            sector,
+            marketCapMin,
+            marketCapMax,
+            peMin,
+            peMax,
+            pbMin,
+            pbMax,
+            roeMin,
+            roeMax,
+            roceMin,
+            roceMax,
+            revenueMin,
+            revenueMax,
+            dividendMin,
+            dividendMax,
+            sortKey,
+            sortDirection,
+        ].join('|'),
+        [
+            query,
+            sector,
+            marketCapMin,
+            marketCapMax,
+            peMin,
+            peMax,
+            pbMin,
+            pbMax,
+            roeMin,
+            roeMax,
+            roceMin,
+            roceMax,
+            revenueMin,
+            revenueMax,
+            dividendMin,
+            dividendMax,
+            sortKey,
+            sortDirection,
+        ]
+    );
 
     useEffect(() => {
+        setStocks([]);
+        setTotal(0);
         setPage(1);
-    }, [query, sector, marketCapMin, marketCapMax, peMin, peMax, pbMin, pbMax, roeMin, roeMax, roceMin, roceMax, revenueMin, revenueMax, dividendMin, dividendMax]);
+        setHasMore(true);
+        setError(null);
+    }, [filterKey]);
 
-    const filteredStocks = useMemo(() => {
-        const normalizedQuery = query.trim().toLowerCase();
-        const filtered = stockUniverse.filter((stock) => {
-            const matchesQuery = !normalizedQuery || `${stock.symbol} ${stock.name} ${stock.sector}`.toLowerCase().includes(normalizedQuery);
-            const matchesSector = sector === 'All' || stock.sector === sector;
-            const matchesMarketCap = (!marketCapMin || stock.marketCap >= Number(marketCapMin)) && (!marketCapMax || stock.marketCap <= Number(marketCapMax));
-            const matchesPe = (!peMin || (stock.pe != null && stock.pe >= Number(peMin))) && (!peMax || (stock.pe != null && stock.pe <= Number(peMax)));
-            const matchesPb = (!pbMin || (stock.pb != null && stock.pb >= Number(pbMin))) && (!pbMax || (stock.pb != null && stock.pb <= Number(pbMax)));
-            const matchesRoe = (!roeMin || (stock.roe != null && stock.roe >= Number(roeMin))) && (!roeMax || (stock.roe != null && stock.roe <= Number(roeMax)));
-            const matchesRoce = (!roceMin || (stock.roce != null && stock.roce >= Number(roceMin))) && (!roceMax || (stock.roce != null && stock.roce <= Number(roceMax)));
-            const matchesRevenue = (!revenueMin || stock.revenue >= Number(revenueMin)) && (!revenueMax || stock.revenue <= Number(revenueMax));
-            const matchesDividend = (!dividendMin || (stock.dividend != null && stock.dividend >= Number(dividendMin))) && (!dividendMax || (stock.dividend != null && stock.dividend <= Number(dividendMax)));
-            return matchesQuery && matchesSector && matchesMarketCap && matchesPe && matchesPb && matchesRoe && matchesRoce && matchesRevenue && matchesDividend;
-        });
+    useEffect(() => {
+        let isMounted = true;
 
-        const sorted = [...filtered].sort((left, right) => {
-            const leftValue = left[sortKey] ?? 0;
-            const rightValue = right[sortKey] ?? 0;
-            const factor = sortDirection === 'asc' ? 1 : -1;
-            if (typeof leftValue === 'string' && typeof rightValue === 'string') {
-                return leftValue.localeCompare(rightValue) * factor;
+        async function loadPage() {
+            setIsLoading(true);
+            setError(null);
+
+            try {
+                const result = await getScreener({
+                    query,
+                    sector,
+                    marketCapMin,
+                    marketCapMax,
+                    peMin,
+                    peMax,
+                    pbMin,
+                    pbMax,
+                    roeMin,
+                    roeMax,
+                    roceMin,
+                    roceMax,
+                    revenueMin,
+                    revenueMax,
+                    dividendMin,
+                    dividendMax,
+                    sortKey,
+                    sortDirection,
+                    page,
+                    pageSize,
+                });
+
+                if (!isMounted) {
+                    return;
+                }
+
+                const nextItems = result.data.items ?? [];
+                const nextTotal = result.data.total ?? 0;
+
+                setStocks((current) => {
+                    const updated = page === 1 ? nextItems : [...current, ...nextItems];
+                    setHasMore(nextItems.length === pageSize && updated.length < nextTotal);
+                    return updated;
+                });
+                setTotal(nextTotal);
+            } catch (err) {
+                if (!isMounted) {
+                    return;
+                }
+                setError(err instanceof Error ? err.message : 'Unable to load screener results.');
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
             }
-            return (Number(leftValue) - Number(rightValue)) * factor;
-        });
-        return sorted;
-    }, [query, sector, marketCapMin, marketCapMax, peMin, peMax, pbMin, pbMax, roeMin, roeMax, roceMin, roceMax, revenueMin, revenueMax, dividendMin, dividendMax, sortDirection, sortKey]);
+        }
 
-    const pagedStocks = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return filteredStocks.slice(start, start + pageSize);
-    }, [filteredStocks, page]);
+        loadPage();
 
-    const totalPages = Math.max(1, Math.ceil(filteredStocks.length / pageSize));
-    const startIndex = filteredStocks.length === 0 ? 0 : (page - 1) * pageSize + 1;
-    const endIndex = Math.min(page * pageSize, filteredStocks.length);
+        return () => {
+            isMounted = false;
+        };
+    }, [
+        query,
+        sector,
+        marketCapMin,
+        marketCapMax,
+        peMin,
+        peMax,
+        pbMin,
+        pbMax,
+        roeMin,
+        roeMax,
+        roceMin,
+        roceMax,
+        revenueMin,
+        revenueMax,
+        dividendMin,
+        dividendMax,
+        sortKey,
+        sortDirection,
+        page,
+    ]);
+
+    useEffect(() => {
+        if (!sentinelRef.current || isLoading || !hasMore) {
+            return undefined;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0]?.isIntersecting) {
+                setPage((current) => current + 1);
+            }
+        }, { rootMargin: '200px' });
+
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [isLoading, hasMore]);
+
+    const startIndex = stocks.length === 0 ? 0 : 1;
+    const endIndex = Math.min(stocks.length, total);
 
     const resetFilters = () => {
         setQuery('');
@@ -166,7 +270,7 @@ export default function ScreenerPage() {
                             </div>
                             <div className="flex flex-wrap gap-3">
                                 <div className="rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-300">
-                                    {filteredStocks.length} matches
+                                    {total} matches
                                 </div>
                                 <Button variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800" onClick={resetFilters}>
                                     Reset filters
@@ -278,7 +382,7 @@ export default function ScreenerPage() {
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <CardTitle>Results</CardTitle>
                             <div className="text-sm text-slate-400">
-                                Showing {filteredStocks.length === 0 ? 0 : startIndex}–{endIndex} of {filteredStocks.length}
+                                Showing {startIndex}–{endIndex} of {total}
                             </div>
                         </div>
                     </CardHeader>
@@ -295,10 +399,10 @@ export default function ScreenerPage() {
                                 <div>Revenue</div>
                                 <div>Dividend</div>
                             </div>
-                            {pagedStocks.length === 0 ? (
+                            {stocks.length === 0 && !isLoading ? (
                                 <div className="px-4 py-6 text-center text-sm text-slate-400">No stocks match those filters yet.</div>
                             ) : (
-                                pagedStocks.map((stock) => (
+                                stocks.map((stock) => (
                                     <div key={stock.symbol} className="grid gap-3 border-t border-slate-800 px-4 py-4 text-sm text-slate-300 md:grid-cols-[0.8fr_1.2fr_0.7fr_0.7fr_0.7fr_0.7fr_0.7fr_0.7fr_0.7fr]">
                                         <div>
                                             <div className="font-semibold text-white">{stock.symbol}</div>
@@ -322,22 +426,22 @@ export default function ScreenerPage() {
 
                         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div className="text-sm text-slate-400">
-                                Page {page} of {totalPages}
+                                Loaded {stocks.length} of {total}
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
-                                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                                </Button>
-                                {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
-                                    <button key={pageNumber} onClick={() => setPage(pageNumber)} className={`h-9 w-9 rounded-full border text-sm ${page === pageNumber ? 'border-cyan-500 bg-cyan-500/20 text-cyan-300' : 'border-slate-700 bg-slate-950/70 text-slate-300'}`}>
-                                        {pageNumber}
-                                    </button>
-                                ))}
-                                <Button variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
-                                    Next <ChevronRight className="ml-2 h-4 w-4" />
-                                </Button>
+                                {error && <div className="text-sm text-rose-300">{error}</div>}
+                                {isLoading && <div className="text-sm text-slate-300">Loading more results…</div>}
+                                {!isLoading && hasMore && (
+                                    <Button variant="outline" className="rounded-full border-slate-700 text-slate-100 hover:bg-slate-800" onClick={() => setPage((current) => current + 1)}>
+                                        Load more
+                                    </Button>
+                                )}
+                                {!isLoading && !hasMore && stocks.length > 0 && (
+                                    <div className="text-sm text-slate-400">All results loaded.</div>
+                                )}
                             </div>
                         </div>
+                        <div ref={sentinelRef} className="h-4" />
                     </CardContent>
                 </Card>
             </div>

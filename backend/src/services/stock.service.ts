@@ -25,6 +25,88 @@ interface CacheEntry<T> {
     expiresAt: number;
 }
 
+export type ScreenerStock = {
+    symbol: string;
+    name: string;
+    sector: string;
+    marketCap: number;
+    pe: number | null;
+    pb: number | null;
+    roe: number | null;
+    roce: number | null;
+    revenue: number;
+    dividend: number | null;
+    price: number;
+    change: number;
+};
+
+export type ScreenerSortKey = 'marketCap' | 'pe' | 'pb' | 'roe' | 'roce' | 'revenue' | 'dividend' | 'price' | 'symbol';
+
+export type ScreenerFilters = {
+    query?: string;
+    sector?: string;
+    marketCapMin?: number;
+    marketCapMax?: number;
+    peMin?: number;
+    peMax?: number;
+    pbMin?: number;
+    pbMax?: number;
+    roeMin?: number;
+    roeMax?: number;
+    roceMin?: number;
+    roceMax?: number;
+    revenueMin?: number;
+    revenueMax?: number;
+    dividendMin?: number;
+    dividendMax?: number;
+    sortKey?: ScreenerSortKey;
+    sortDirection?: 'asc' | 'desc';
+    page?: number;
+    pageSize?: number;
+};
+
+const SCREENER_UNIVERSE: Array<{ symbol: string; name: string; sector: string }> = [
+    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Limited', sector: 'Energy' },
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd.', sector: 'Information Technology' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd.', sector: 'Information Technology' },
+    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd.', sector: 'Financials' },
+    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd.', sector: 'Financials' },
+    { symbol: 'HDFC.NS', name: 'HDFC Ltd.', sector: 'Financials' },
+    { symbol: 'LT.NS', name: 'Larsen & Toubro Ltd.', sector: 'Industrials' },
+    { symbol: 'ADANIENT.NS', name: 'Adani Enterprises Ltd.', sector: 'Energy' },
+    { symbol: 'SBIN.NS', name: 'State Bank of India', sector: 'Financials' },
+    { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Ltd.', sector: 'Communication Services' },
+    { symbol: 'HINDUNILVR.NS', name: 'Hindustan Unilever Ltd.', sector: 'Consumer Staples' },
+    { symbol: 'ITC.NS', name: 'ITC Ltd.', sector: 'Consumer Staples' },
+    { symbol: 'BAJAJ-AUTO.NS', name: 'Bajaj Auto Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'MARUTI.NS', name: 'Maruti Suzuki India Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'ASIANPAINT.NS', name: 'Asian Paints Ltd.', sector: 'Materials' },
+    { symbol: 'AXISBANK.NS', name: 'Axis Bank Ltd.', sector: 'Financials' },
+    { symbol: 'KOTAKBANK.NS', name: 'Kotak Mahindra Bank Ltd.', sector: 'Financials' },
+    { symbol: 'SUNPHARMA.NS', name: 'Sun Pharmaceutical Industries Ltd.', sector: 'Health Care' },
+    { symbol: 'DRREDDY.NS', name: 'Dr. Reddy’s Laboratories Ltd.', sector: 'Health Care' },
+    { symbol: 'TITAN.NS', name: 'Titan Company Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'WIPRO.NS', name: 'Wipro Ltd.', sector: 'Information Technology' },
+    { symbol: 'TECHM.NS', name: 'Tech Mahindra Ltd.', sector: 'Information Technology' },
+    { symbol: 'HCLTECH.NS', name: 'HCL Technologies Ltd.', sector: 'Information Technology' },
+    { symbol: 'ULTRACEMCO.NS', name: 'UltraTech Cement Ltd.', sector: 'Materials' },
+    { symbol: 'NESTLEIND.NS', name: 'Nestle India Ltd.', sector: 'Consumer Staples' },
+    { symbol: 'M&M.NS', name: 'Mahindra & Mahindra Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'SBILIFE.NS', name: 'SBI Life Insurance Company Ltd.', sector: 'Financials' },
+    { symbol: 'EICHERMOT.NS', name: 'Eicher Motors Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'TATAMOTORS.NS', name: 'Tata Motors Ltd.', sector: 'Consumer Discretionary' },
+    { symbol: 'BPCL.NS', name: 'BPCL Ltd.', sector: 'Energy' },
+    { symbol: 'IOC.NS', name: 'Indian Oil Corporation Ltd.', sector: 'Energy' },
+    { symbol: 'ONGC.NS', name: 'Oil and Natural Gas Corporation Ltd.', sector: 'Energy' },
+    { symbol: 'POWERGRID.NS', name: 'Power Grid Corporation of India Ltd.', sector: 'Utilities' },
+    { symbol: 'NTPC.NS', name: 'NTPC Ltd.', sector: 'Utilities' },
+    { symbol: 'JSWSTEEL.NS', name: 'JSW Steel Ltd.', sector: 'Materials' },
+    { symbol: 'COALINDIA.NS', name: 'Coal India Ltd.', sector: 'Materials' },
+    { symbol: 'ADANIPORTS.NS', name: 'Adani Ports and Special Economic Zone Ltd.', sector: 'Industrials' },
+    { symbol: 'HINDALCO.NS', name: 'Hindalco Industries Ltd.', sector: 'Materials' },
+    { symbol: 'GRASIM.NS', name: 'Grasim Industries Ltd.', sector: 'Materials' },
+];
+
 function getRecordArray(container: Record<string, unknown> | undefined, key: string) {
     const value = container?.[key];
     return Array.isArray(value) ? value : [];
@@ -51,6 +133,146 @@ class StockService {
 
     private setCache<T>(key: string, value: T, ttlMs = 5 * 60 * 1000) {
         this.cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+    }
+
+    private parseRawNumber(value: unknown): number | null {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (typeof value === 'object' && value !== null && 'raw' in value && typeof (value as any).raw === 'number') {
+            return (value as any).raw;
+        }
+
+        return null;
+    }
+
+    private async getScreenerSymbolData(symbol: string, name: string, sector: string): Promise<ScreenerStock> {
+        const cacheKey = this.getCacheKey('screener', symbol);
+        const cached = this.getCached<ScreenerStock>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const payload = await yahooFinance.quoteSummary(symbol, {
+            modules: ['price', 'defaultKeyStatistics', 'financialData', 'summaryDetail'],
+        }) as Record<string, unknown>;
+
+        const price = payload.price as Record<string, unknown> | undefined;
+        const defaultKeyStatistics = payload.defaultKeyStatistics as Record<string, unknown> | undefined;
+        const financialData = payload.financialData as Record<string, unknown> | undefined;
+        const summaryDetail = payload.summaryDetail as Record<string, unknown> | undefined;
+
+        const rawRoe = this.parseRawNumber(financialData?.returnOnEquity);
+        const rawRoce = this.parseRawNumber(financialData?.returnOnCapital) ?? this.parseRawNumber(financialData?.returnOnAssets);
+        const dividendYieldRaw = this.parseRawNumber(summaryDetail?.dividendYield);
+
+        const stock: ScreenerStock = {
+            symbol,
+            name,
+            sector,
+            price: this.parseRawNumber(price?.regularMarketPrice) ?? 0,
+            change: this.parseRawNumber(price?.regularMarketChangePercent) ?? 0,
+            marketCap: this.parseRawNumber(price?.marketCap) ?? 0,
+            pe: this.parseRawNumber(defaultKeyStatistics?.trailingPE),
+            pb: this.parseRawNumber(defaultKeyStatistics?.priceToBook),
+            roe: rawRoe != null ? Math.round(rawRoe * 10000) / 100 : null,
+            roce: rawRoce != null ? Math.round(rawRoce * 10000) / 100 : null,
+            revenue: this.parseRawNumber(defaultKeyStatistics?.revenue) ?? 0,
+            dividend: dividendYieldRaw != null ? Math.round(dividendYieldRaw * 10000) / 100 : null,
+        };
+
+        this.setCache(cacheKey, stock, 30 * 60 * 1000);
+        return stock;
+    }
+
+    async getScreenerStocks(filters: ScreenerFilters) {
+        const {
+            query,
+            sector,
+            marketCapMin,
+            marketCapMax,
+            peMin,
+            peMax,
+            pbMin,
+            pbMax,
+            roeMin,
+            roeMax,
+            roceMin,
+            roceMax,
+            revenueMin,
+            revenueMax,
+            dividendMin,
+            dividendMax,
+            sortKey = 'marketCap',
+            sortDirection = 'desc',
+            page = 1,
+            pageSize = 20,
+        } = filters;
+
+        const normalizedQuery = query?.trim().toLowerCase() || '';
+        const sectorFilter = sector && sector !== 'All' ? sector : undefined;
+
+        const candidates = SCREENER_UNIVERSE.filter((item) => {
+            const matchesQuery =
+                !normalizedQuery ||
+                `${item.symbol} ${item.name} ${item.sector}`.toLowerCase().includes(normalizedQuery);
+            const matchesSector = !sectorFilter || item.sector === sectorFilter;
+            return matchesQuery && matchesSector;
+        });
+
+        const stockData = await Promise.allSettled(
+            candidates.map((item) => this.getScreenerSymbolData(item.symbol, item.name, item.sector))
+        );
+
+        const stocks: ScreenerStock[] = stockData
+            .filter((result): result is PromiseFulfilledResult<ScreenerStock> => result.status === 'fulfilled')
+            .map((result) => result.value)
+            .filter((stock) => {
+                const matchesMarketCap =
+                    (!marketCapMin || stock.marketCap >= marketCapMin) &&
+                    (!marketCapMax || stock.marketCap <= marketCapMax);
+                const matchesPe =
+                    (!peMin || (stock.pe != null && stock.pe >= peMin)) &&
+                    (!peMax || (stock.pe != null && stock.pe <= peMax));
+                const matchesPb =
+                    (!pbMin || (stock.pb != null && stock.pb >= pbMin)) &&
+                    (!pbMax || (stock.pb != null && stock.pb <= pbMax));
+                const matchesRoe =
+                    (!roeMin || (stock.roe != null && stock.roe >= roeMin)) &&
+                    (!roeMax || (stock.roe != null && stock.roe <= roeMax));
+                const matchesRoce =
+                    (!roceMin || (stock.roce != null && stock.roce >= roceMin)) &&
+                    (!roceMax || (stock.roce != null && stock.roce <= roceMax));
+                const matchesRevenue =
+                    (!revenueMin || stock.revenue >= revenueMin) &&
+                    (!revenueMax || stock.revenue <= revenueMax);
+                const matchesDividend =
+                    (!dividendMin || (stock.dividend != null && stock.dividend >= dividendMin)) &&
+                    (!dividendMax || (stock.dividend != null && stock.dividend <= dividendMax));
+                return matchesMarketCap && matchesPe && matchesPb && matchesRoe && matchesRoce && matchesRevenue && matchesDividend;
+            });
+
+        const sorted = [...stocks].sort((left, right) => {
+            const leftValue = left[sortKey] ?? 0;
+            const rightValue = right[sortKey] ?? 0;
+            const factor = sortDirection === 'asc' ? 1 : -1;
+            if (typeof leftValue === 'string' && typeof rightValue === 'string') {
+                return leftValue.localeCompare(rightValue) * factor;
+            }
+            return (Number(leftValue) - Number(rightValue)) * factor;
+        });
+
+        const total = sorted.length;
+        const start = (page - 1) * pageSize;
+        const items = sorted.slice(start, start + pageSize);
+
+        return {
+            items,
+            total,
+            page,
+            pageSize,
+        };
     }
 
     async searchStocks(query: string) {
